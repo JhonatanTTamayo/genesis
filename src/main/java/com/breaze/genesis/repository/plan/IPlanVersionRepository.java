@@ -8,10 +8,17 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface IPlanVersionRepository extends JpaRepository<PlanVersion, Long> {
 
   long countByPlanId(Long planId);
+
+    Optional<PlanVersion> findFirstByPlanIdAndValidToIsNullOrderByValidFromDesc(Long planId);
+
+    Optional<PlanVersion> findFirstByPlanIdOrderByValidFromDesc(Long planId);
+
+    void deleteByPlanId(Long planId);
 
     @Query("""
             SELECT pv

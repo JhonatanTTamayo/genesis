@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -35,7 +36,10 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Public — registration and login
-                        .requestMatchers("/auth/**").permitAll()
+                    .requestMatchers("/auth/**", "/api/v1/auth/**").permitAll()
+                    // Authorization at filter-chain level to avoid body parsing before role checks.
+                    .requestMatchers(HttpMethod.PUT, "/api/v1/plans/**").hasRole("ADMIN")
+                    .requestMatchers(HttpMethod.DELETE, "/api/v1/plans/**").hasRole("ADMIN")
                         // Endpoints without @PreAuthorize are publicly accessible
                         .anyRequest().permitAll()
                 )

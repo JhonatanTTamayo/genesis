@@ -12,6 +12,12 @@ import java.util.List;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * DTO de salida para el listado paginado de planes.
+ *
+ * @version 1.0.0
+ * @author donpedromz
+ */
 public class ListPlansResponse {
     private List<PlanItemDTO> content;
     private Integer page;

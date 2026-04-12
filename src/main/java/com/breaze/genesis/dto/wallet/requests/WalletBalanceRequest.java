@@ -10,6 +10,12 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * DTO de entrada para consultar el saldo del wallet del usuario autenticado.
+ *
+ * @version 1.0.0
+ * @author donpedromz
+ */
 public class WalletBalanceRequest {
 
     @NotBlank(message = "authenticatedEmail is required")

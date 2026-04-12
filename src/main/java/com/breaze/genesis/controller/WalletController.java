@@ -19,10 +19,22 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/wallet")
 @RequiredArgsConstructor
+/**
+ * Controlador REST para consultar saldo e historial de transacciones del wallet.
+ *
+ * @version 1.0.0
+ * @author donpedromz
+ */
 public class WalletController {
 
     private final IWalletService walletService;
 
+    /**
+     * Consulta el saldo actual del usuario autenticado.
+     *
+     * @param authentication contexto de autenticacion actual
+     * @return saldo y metadatos del wallet
+     */
     @GetMapping("/me")
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public ResponseEntity<WalletBalanceResponse> getMyWallet(Authentication authentication) {
@@ -32,6 +44,13 @@ public class WalletController {
         return ResponseEntity.ok(walletService.getMyBalance(request));
     }
 
+    /**
+     * Consulta el historial de transacciones del wallet del usuario autenticado.
+     *
+     * @param query parametros de paginacion
+     * @param authentication contexto de autenticacion actual
+     * @return historial paginado de transacciones
+     */
     @GetMapping("/transactions")
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public ResponseEntity<WalletTransactionHistoryResponse> getMyWalletTransactions(
@@ -47,6 +66,12 @@ public class WalletController {
         return ResponseEntity.ok(walletService.getMyTransactions(request));
     }
 
+    /**
+     * Extrae y valida el correo del usuario autenticado.
+     *
+     * @param authentication contexto de autenticacion actual
+     * @return correo autenticado
+     */
     private String getAuthenticatedEmail(Authentication authentication) {
         if (authentication == null || authentication.getName() == null || authentication.getName().isBlank()) {
             throw new AuthenticationCredentialsNotFoundException("Usuario no autenticado");

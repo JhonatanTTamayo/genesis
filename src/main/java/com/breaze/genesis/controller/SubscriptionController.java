@@ -27,10 +27,22 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/v1/subscriptions")
 @RequiredArgsConstructor
+/**
+ * Controlador REST para la gestion de suscripciones del usuario autenticado.
+ *
+ * @version 1.0.0
+ * @author donpedromz
+ */
 public class SubscriptionController {
     private final ISubscriptionService subscriptionService;
 
-    
+    /**
+     * Obtiene el historial de suscripciones del usuario autenticado.
+     *
+     * @param query parametros de paginacion
+     * @param authentication contexto de autenticacion actual
+     * @return historial paginado de suscripciones
+     */
     @GetMapping("/history")
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public ResponseEntity<List<ListSubscriptionHistoryResponse>> getSubscriptionHistory(
@@ -41,6 +53,12 @@ public class SubscriptionController {
         return ResponseEntity.ok(history);
     }
 
+    /**
+     * Obtiene la suscripcion activa del usuario autenticado.
+     *
+     * @param authentication contexto de autenticacion actual
+     * @return suscripcion activa del usuario
+     */
     @GetMapping("/me")
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public ResponseEntity<MyActiveSubscriptionResponse> getMyActiveSubscription(Authentication authentication) {
@@ -51,6 +69,13 @@ public class SubscriptionController {
         return ResponseEntity.ok(response);
     }
 
+    /**
+     * Crea una suscripcion para el usuario autenticado sobre un plan vigente.
+     *
+     * @param authentication contexto de autenticacion actual
+     * @param request datos de la suscripcion solicitada
+     * @return suscripcion creada o suscripcion vigente reutilizada
+     */
     @PostMapping("")
     @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public ResponseEntity<CreateSubscriptionResponse> createSubscription(
@@ -61,6 +86,12 @@ public class SubscriptionController {
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
+    /**
+     * Extrae y valida el correo del usuario autenticado.
+     *
+     * @param authentication contexto de autenticacion actual
+     * @return correo autenticado
+     */
     private String getAuthenticatedEmail(Authentication authentication) {
         if (authentication == null || authentication.getName() == null || authentication.getName().isBlank()) {
             throw new AuthenticationCredentialsNotFoundException("Usuario no autenticado");

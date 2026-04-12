@@ -12,6 +12,12 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * DTO de salida para representar una transaccion individual del wallet.
+ *
+ * @version 1.0.0
+ * @author donpedromz
+ */
 public class WalletTransactionItemDTO {
     private Long id;
     private Integer amount;

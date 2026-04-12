@@ -48,7 +48,7 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
     private static final int DEFAULT_PAGE = 0;
     private static final int DEFAULT_SIZE = 10;
     private static final int MAX_SIZE = 50;
-    private static final int SUBSCRIPTION_PERIOD_DAYS = 30;
+    private static final int DEFAULT_SUBSCRIPTION_PERIOD_DAYS = 30;
 
     private final IUserRepository userRepository;
     private final IPlanRepository planRepository;
@@ -161,7 +161,12 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
                 ? activeSubscription.getPendingPlan()
                 : activeSubscription.getPlanVersion().getPlan();
 
-        PlanVersion renewalPlanVersion = resolveEffectivePlanVersion(renewalPlan.getId(), now);
+        Optional<PlanVersion> renewalVersion = findEffectivePlanVersion(renewalPlan.getId(), now);
+        if (renewalVersion.isEmpty()) {
+            return Optional.empty();
+        }
+
+        PlanVersion renewalPlanVersion = renewalVersion.get();
 
         Subscription renewedSubscription = createActiveSubscription(user, renewalPlanVersion, now);
 
@@ -187,15 +192,23 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
     private PlanVersion resolveRequestedPlanVersion(Long planId, LocalDateTime at) {
         Plan plan = planRepository.findById(planId)
                 .orElseThrow(() -> new ResourceNotFoundException("Plan no encontrado"));
-        return resolveEffectivePlanVersion(plan.getId(), at);
+        return findEffectivePlanVersion(plan.getId(), at)
+                .orElseThrow(() -> new BusinessException("El plan seleccionado no tiene una versión vigente y está temporalmente deshabilitado"));
     }
 
-    private PlanVersion resolveEffectivePlanVersion(Long planId, LocalDateTime at) {
+        /**
+         * Busca la version efectiva de un plan en una fecha dada.
+         *
+         * @param planId identificador del plan
+         * @param at instante de evaluacion
+         * @return version vigente opcional
+         */
+    private Optional<PlanVersion> findEffectivePlanVersion(Long planId, LocalDateTime at) {
         List<PlanVersion> versions = planVersionRepository.findEffectiveVersions(planId, at, PageRequest.of(0, 1));
         if (versions.isEmpty()) {
-            throw new ResourceNotFoundException("No existe una versión vigente para el plan solicitado");
+            return Optional.empty();
         }
-        return versions.get(0);
+        return Optional.of(versions.get(0));
     }
 
     /**
@@ -306,12 +319,34 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         subscription.setUser(user);
         subscription.setPlanVersion(planVersion);
         subscription.setStartDate(startDate);
-        subscription.setEndDate(startDate.plusDays(SUBSCRIPTION_PERIOD_DAYS));
+        subscription.setEndDate(resolveSubscriptionEndDate(startDate, planVersion));
         subscription.setStatus(SubscriptionStatus.ACTIVE);
         subscription.setAutoRenew(true);
         return subscriptionRepository.save(subscription);
     }
 
+    /**
+     * Calcula la fecha de fin de suscripcion a partir de la duracion configurada en la version.
+     *
+     * @param startDate fecha de inicio
+     * @param planVersion version de plan aplicada
+     * @return fecha de fin calculada
+     */
+    private LocalDateTime resolveSubscriptionEndDate(LocalDateTime startDate, PlanVersion planVersion) {
+        Integer durationSeconds = planVersion.getDurationSeconds();
+        if (durationSeconds == null || durationSeconds <= 0) {
+            return startDate.plusDays(DEFAULT_SUBSCRIPTION_PERIOD_DAYS);
+        }
+        return startDate.plusSeconds(durationSeconds);
+    }
+
+    /**
+     * Normaliza el signo del monto segun el tipo de movimiento.
+     *
+     * @param amount monto base
+     * @param type tipo de movimiento
+     * @return monto normalizado
+     */
     private int normalizeAmountByType(Integer amount, TokenTransactionType type) {
         int absoluteAmount = Math.abs(amount);
         if (type == TokenTransactionType.SUBSTRACT) {
@@ -320,11 +355,24 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         return absoluteAmount;
     }
 
+    /**
+     * Construye una llave idempotente deterministica para evitar duplicados.
+     *
+     * @param action accion principal
+     * @param values componentes de llave
+     * @return llave idempotente
+     */
     private String buildIdempotencyKey(String action, String... values) {
         String raw = action + ":" + String.join(":", values);
         return UUID.nameUUIDFromBytes(raw.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
+    /**
+     * Mapea una suscripcion al DTO de historial.
+     *
+     * @param subscription suscripcion de dominio
+     * @return item de historial
+     */
     private ListSubscriptionHistoryResponse mapHistory(Subscription subscription) {
         return new ListSubscriptionHistoryResponse(
                 subscription.getId(),
@@ -335,6 +383,12 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         );
     }
 
+    /**
+     * Mapea una suscripcion al DTO de suscripcion activa.
+     *
+     * @param subscription suscripcion de dominio
+     * @return respuesta de suscripcion activa
+     */
     private MyActiveSubscriptionResponse mapMyActiveSubscription(Subscription subscription) {
         SubscriptionPlanDTO planDTO = SubscriptionPlanDTO.builder()
                 .id(subscription.getPlanVersion().getPlan().getId())

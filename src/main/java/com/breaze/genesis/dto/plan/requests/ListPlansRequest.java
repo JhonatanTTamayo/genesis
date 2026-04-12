@@ -11,6 +11,12 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * DTO de entrada para listar planes con paginacion y ordenamiento.
+ *
+ * @version 1.0.0
+ * @author donpedromz
+ */
 public class ListPlansRequest {
     @Min(value = 0, message = "page must be greater than or equal to 0")
     private Integer page;

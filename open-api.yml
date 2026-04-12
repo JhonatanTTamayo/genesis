@@ -388,7 +388,7 @@ paths:
     put:
       tags:
         - Plans
-      summary: Update plan
+      summary: Update plan and create a new active version
       operationId: updatePlan
       security:
         - bearerAuth: []
@@ -404,14 +404,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PlanUpsertRequest'
+              $ref: '#/components/schemas/PlanUpdateRequest'
       responses:
         '200':
-          description: Plan updated successfully
+          description: Plan updated successfully and a new version was created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PlanResponse'
+                $ref: '#/components/schemas/PlanUpdateResponse'
         '400':
           description: Validation error
           content:
@@ -436,6 +436,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict while creating the new version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     delete:
       tags:
@@ -452,8 +458,12 @@ paths:
             type: integer
             format: int64
       responses:
-        '204':
+        '200':
           description: Plan deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanDeleteResponse'
         '401':
           description: Unauthorized
           content:
@@ -516,6 +526,12 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Plan has no active version and cannot accept new subscriptions
           content:
             application/json:
               schema:
@@ -1290,19 +1306,68 @@ components:
     PlanResponse:
       type: object
       properties:
-        id:
+        planId:
           type: integer
           format: int64
           example: 1
-        name:
+        planName:
           type: string
           example: Free
-        tokenAmount:
+        planDescription:
+          type: string
+          example: Plan base gratuito
+        tokenLimitPerCycle:
           type: integer
           example: 200
-        active:
+        billingCycleDurationSeconds:
+          type: integer
+          example: 2592000
+
+    PlanUpdateResponse:
+      type: object
+      properties:
+        planId:
+          type: integer
+          format: int64
+          example: 2
+        planName:
+          type: string
+          example: Pro Plus
+        planDescription:
+          type: string
+          example: Plan profesional con mayor capacidad
+        tokenLimitPerCycle:
+          type: integer
+          example: 2500
+        billingCycleDurationSeconds:
+          type: integer
+          example: 2592000
+        versionValidFrom:
+          type: string
+          format: date-time
+          example: '2026-04-12T12:00:00'
+        versionValidTo:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-05-12T12:00:00'
+        currentlyAvailable:
           type: boolean
           example: true
+
+    PlanDeleteResponse:
+      type: object
+      properties:
+        planId:
+          type: integer
+          format: int64
+          example: 3
+        deleted:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Plan eliminado exitosamente
 
     PlanPageResponse:
       type: object
@@ -1869,6 +1934,33 @@ components:
         active:
           type: boolean
           example: true
+
+    PlanUpdateRequest:
+      type: object
+      description: Creating scheduled versions is not allowed; versionValidFrom is always set by the system to now.
+      required:
+        - planName
+        - planDescription
+        - tokenLimitPerCycle
+        - billingCycleDurationSeconds
+      properties:
+        planName:
+          type: string
+          example: Pro Plus
+        planDescription:
+          type: string
+          example: Plan profesional con mayor capacidad
+        tokenLimitPerCycle:
+          type: integer
+          example: 2500
+        billingCycleDurationSeconds:
+          type: integer
+          example: 2592000
+        versionValidTo:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-05-12T12:00:00'
 
     ExchangeRateRequest:
       type: object

@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ISubscriptionRepository extends JpaRepository<Subscription, Long> {
@@ -15,4 +16,10 @@ public interface ISubscriptionRepository extends JpaRepository<Subscription, Lon
     Optional<Subscription> findByUserEmailAndStatus(String email, SubscriptionStatus status);
 
     Page<Subscription> findByUserEmail(String email, Pageable pageable);
+
+    boolean existsByPlanVersionPlanIdAndStatus(Long planId, SubscriptionStatus status);
+
+    boolean existsByPlanVersionPlanId(Long planId);
+
+    List<Subscription> findByPlanVersionPlanIdAndStatus(Long planId, SubscriptionStatus status);
 }

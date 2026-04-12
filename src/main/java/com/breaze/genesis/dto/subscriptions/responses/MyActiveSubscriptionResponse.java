@@ -12,6 +12,12 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * DTO de salida para exponer la suscripcion activa del usuario autenticado.
+ *
+ * @version 1.0.0
+ * @author donpedromz
+ */
 public class MyActiveSubscriptionResponse {
     private Long id;
     private SubscriptionPlanDTO plan;

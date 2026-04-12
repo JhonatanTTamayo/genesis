@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import jakarta.validation.ConstraintViolationException;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -100,6 +101,27 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
                 ValidationErrorResponse.builder()
                 .message("Validation error")
+                        .errors(errors)
+                        .timestamp(LocalDateTime.now())
+                        .build()
+        );
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ValidationErrorResponse> handleConstraintViolation(ConstraintViolationException ex) {
+        
+        List<ValidationErrorItem> errors = ex.getConstraintViolations()
+                .stream()
+                .map(violation -> {
+                    String propertyPath = violation.getPropertyPath().toString();
+                    String field = propertyPath.substring(propertyPath.lastIndexOf('.') + 1);
+                    return new ValidationErrorItem(field, violation.getMessage());
+                })
+                .toList();
+
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(
+                ValidationErrorResponse.builder()
+                        .message("Validation error")
                         .errors(errors)
                         .timestamp(LocalDateTime.now())
                         .build()

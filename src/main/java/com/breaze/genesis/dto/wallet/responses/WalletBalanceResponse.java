@@ -11,6 +11,12 @@ import java.time.LocalDateTime;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * DTO de salida con saldo actual del wallet.
+ *
+ * @version 1.0.0
+ * @author donpedromz
+ */
 public class WalletBalanceResponse {
     private Long userId;
     private String email;

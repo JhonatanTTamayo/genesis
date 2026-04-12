@@ -11,6 +11,12 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+/**
+ * DTO de entrada para consultar historial paginado de transacciones del wallet.
+ *
+ * @version 1.0.0
+ * @author donpedromz
+ */
 public class WalletTransactionHistoryRequest {
 
     private String authenticatedEmail;

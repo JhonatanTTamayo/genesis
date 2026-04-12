@@ -22,6 +22,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+/**
+ * Implementacion del servicio de consulta de wallet y transacciones.
+ *
+ * @version 1.0.0
+ * @author donpedromz
+ */
 public class WalletServiceImpl implements IWalletService {
 
     private static final int DEFAULT_PAGE = 0;
@@ -32,6 +38,12 @@ public class WalletServiceImpl implements IWalletService {
     private final ITokenWalletRepository tokenWalletRepository;
     private final ITokenTransactionRepository tokenTransactionRepository;
 
+        /**
+         * Obtiene el saldo actual del usuario autenticado.
+         *
+         * @param request solicitud con correo autenticado
+         * @return saldo y fecha de actualizacion del wallet
+         */
     @Override
     @Transactional(readOnly = true)
     public WalletBalanceResponse getMyBalance(WalletBalanceRequest request) {
@@ -53,6 +65,12 @@ public class WalletServiceImpl implements IWalletService {
                 .build();
     }
 
+        /**
+         * Obtiene el historial paginado de transacciones del usuario autenticado.
+         *
+         * @param request solicitud con correo y paginacion
+         * @return transacciones paginadas del wallet
+         */
     @Override
     @Transactional(readOnly = true)
     public WalletTransactionHistoryResponse getMyTransactions(WalletTransactionHistoryRequest request) {
@@ -76,11 +94,23 @@ public class WalletServiceImpl implements IWalletService {
                 .build();
     }
 
+        /**
+         * Resuelve el usuario autenticado por correo.
+         *
+         * @param authenticatedEmail correo autenticado
+         * @return entidad de usuario
+         */
     private User findAuthenticatedUser(String authenticatedEmail) {
         return userRepository.findByEmail(authenticatedEmail)
                 .orElseThrow(() -> new ResourceNotFoundException("Usuario autenticado no encontrado"));
     }
 
+        /**
+         * Convierte una transaccion de dominio a su DTO de respuesta.
+         *
+         * @param transaction transaccion de tokens
+         * @return item DTO de transaccion
+         */
     private WalletTransactionItemDTO mapTransaction(TokenTransaction transaction) {
         return WalletTransactionItemDTO.builder()
                 .id(transaction.getId())
