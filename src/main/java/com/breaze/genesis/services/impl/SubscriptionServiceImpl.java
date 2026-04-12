@@ -1,0 +1,353 @@
+package com.breaze.genesis.services.impl;
+
+import com.breaze.genesis.dto.subscriptions.requests.SubscriptionCreateRequest;
+import com.breaze.genesis.dto.subscriptions.requests.MyActiveSubscriptionRequest;
+import com.breaze.genesis.dto.subscriptions.requests.SubscriptionHistoryQueryRequest;
+import com.breaze.genesis.dto.subscriptions.dto.SubscriptionPlanDTO;
+import com.breaze.genesis.dto.subscriptions.responses.CreateSubscriptionResponse;
+import com.breaze.genesis.dto.subscriptions.responses.ListSubscriptionHistoryResponse;
+import com.breaze.genesis.dto.subscriptions.responses.MyActiveSubscriptionResponse;
+import com.breaze.genesis.entity.plan.Plan;
+import com.breaze.genesis.entity.plan.PlanVersion;
+import com.breaze.genesis.entity.subscriptions.Subscription;
+import com.breaze.genesis.entity.subscriptions.SubscriptionStatus;
+import com.breaze.genesis.entity.tokens.TokenTransaction;
+import com.breaze.genesis.entity.tokens.TokenTransactionType;
+import com.breaze.genesis.entity.tokens.TokenWallet;
+import com.breaze.genesis.entity.User;
+import com.breaze.genesis.exceptions.BusinessException;
+import com.breaze.genesis.exceptions.ResourceNotFoundException;
+import com.breaze.genesis.repository.plan.IPlanRepository;
+import com.breaze.genesis.repository.plan.IPlanVersionRepository;
+import com.breaze.genesis.repository.subscription.ISubscriptionRepository;
+import com.breaze.genesis.repository.token.ITokenTransactionRepository;
+import com.breaze.genesis.repository.token.ITokenWalletRepository;
+import com.breaze.genesis.repository.IUserRepository;
+import com.breaze.genesis.services.ISubscriptionService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.nio.charset.StandardCharsets;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+/**
+ * Servicio de suscripciones con renovacion lazy y modelo ledger + snapshot.
+ *
+ * @version 1.0.0
+ * @author donpedromz
+ */
+@Service
+@RequiredArgsConstructor
+public class SubscriptionServiceImpl implements ISubscriptionService {
+    private static final int DEFAULT_PAGE = 0;
+    private static final int DEFAULT_SIZE = 10;
+    private static final int MAX_SIZE = 50;
+    private static final int SUBSCRIPTION_PERIOD_DAYS = 30;
+
+    private final IUserRepository userRepository;
+    private final IPlanRepository planRepository;
+    private final IPlanVersionRepository planVersionRepository;
+    private final ISubscriptionRepository subscriptionRepository;
+    private final ITokenWalletRepository tokenWalletRepository;
+    private final ITokenTransactionRepository tokenTransactionRepository;
+
+    /**
+     * Obtiene historial de suscripciones del usuario autenticado con paginacion.
+     */
+    @Override
+    @Transactional
+    public List<ListSubscriptionHistoryResponse> getHistory(String authenticatedEmail, SubscriptionHistoryQueryRequest request) {
+        User user = findAuthenticatedUser(authenticatedEmail);
+
+        // Lazy evaluation of subscription lifecycle on each request.
+        evaluateLazyRenewal(user, LocalDateTime.now());
+
+        PageRequest pageRequest = buildPageRequest(request);
+
+        return subscriptionRepository
+                .findByUserEmail(authenticatedEmail, pageRequest)
+                .map(this::mapHistory)
+                .getContent();
+    }
+
+    /**
+     * Crea o actualiza suscripcion activa aplicando idempotencia y ledger de wallet.
+     */
+    @Override
+    @Transactional
+    public CreateSubscriptionResponse createSubscription(String authenticatedEmail, SubscriptionCreateRequest request) {
+        User user = findAuthenticatedUser(authenticatedEmail);
+        LocalDateTime now = LocalDateTime.now();
+        Optional<Subscription> optionalActiveSubscription = evaluateLazyRenewal(user, now);
+        PlanVersion targetPlanVersion = resolveRequestedPlanVersion(request.getPlanId(), now);
+
+        if (optionalActiveSubscription.isPresent()) {
+            Subscription activeSubscription = optionalActiveSubscription.get();
+
+            if (isSamePlan(activeSubscription, targetPlanVersion)) {
+                return buildResponse(
+                        user,
+                        activeSubscription.getPlanVersion(),
+                        activeSubscription.getStartDate(),
+                        getOrCreateWallet(user).getTokensAvailable()
+                );
+            }
+
+            validateUpgrade(activeSubscription, targetPlanVersion);
+            expireSubscription(activeSubscription, now);
+        }
+
+        Subscription newSubscription = createActiveSubscription(user, targetPlanVersion, now);
+        String idempotencyKey = buildIdempotencyKey(
+                "subscription:add",
+                user.getId().toString(),
+                newSubscription.getId().toString(),
+                targetPlanVersion.getId().toString()
+        );
+
+        int newBalance = applyWalletMovement(
+                user,
+                targetPlanVersion.getTokenLimit(),
+                TokenTransactionType.ADD,
+                newSubscription.getId(),
+                idempotencyKey
+        );
+
+        return buildResponse(user, targetPlanVersion, newSubscription.getStartDate(), newBalance);
+    }
+
+    /**
+     * Obtiene la suscripcion activa del usuario autenticado.
+     */
+    @Override
+    @Transactional
+    public MyActiveSubscriptionResponse getMyActiveSubscription(MyActiveSubscriptionRequest request) {
+        User user = findAuthenticatedUser(request.getAuthenticatedEmail());
+        LocalDateTime now = LocalDateTime.now();
+
+        Subscription activeSubscription = evaluateLazyRenewal(user, now)
+                .orElseThrow(() -> new ResourceNotFoundException("No se encontró una suscripción activa para el usuario autenticado"));
+
+        return mapMyActiveSubscription(activeSubscription);
+    }
+
+    /**
+     * Evalua expiracion/renovacion de forma lazy en tiempo de request.
+     */
+    private Optional<Subscription> evaluateLazyRenewal(User user, LocalDateTime now) {
+        Optional<Subscription> optionalActiveSubscription = subscriptionRepository.findByUserAndStatus(user, SubscriptionStatus.ACTIVE);
+        if (optionalActiveSubscription.isEmpty()) {
+            return Optional.empty();
+        }
+
+        Subscription activeSubscription = optionalActiveSubscription.get();
+        if (activeSubscription.getEndDate() == null || activeSubscription.getEndDate().isAfter(now)) {
+            return optionalActiveSubscription;
+        }
+
+        expireSubscription(activeSubscription, now);
+
+        if (!Boolean.TRUE.equals(activeSubscription.getAutoRenew())) {
+            return Optional.empty();
+        }
+
+        Plan renewalPlan = activeSubscription.getPendingPlan() != null
+                ? activeSubscription.getPendingPlan()
+                : activeSubscription.getPlanVersion().getPlan();
+
+        PlanVersion renewalPlanVersion = resolveEffectivePlanVersion(renewalPlan.getId(), now);
+
+        Subscription renewedSubscription = createActiveSubscription(user, renewalPlanVersion, now);
+
+        String renewalKey = buildIdempotencyKey(
+                "subscription:renewal",
+                user.getId().toString(),
+                activeSubscription.getId().toString(),
+                renewalPlanVersion.getId().toString()
+        );
+        applyWalletMovement(
+                user,
+                renewalPlanVersion.getTokenLimit(),
+                TokenTransactionType.ADD,
+                renewedSubscription.getId(),
+                renewalKey
+        );
+        return Optional.of(renewedSubscription);
+    }
+
+    /**
+     * Resuelve la version vigente del plan solicitado.
+     */
+    private PlanVersion resolveRequestedPlanVersion(Long planId, LocalDateTime at) {
+        Plan plan = planRepository.findById(planId)
+                .orElseThrow(() -> new ResourceNotFoundException("Plan no encontrado"));
+        return resolveEffectivePlanVersion(plan.getId(), at);
+    }
+
+    private PlanVersion resolveEffectivePlanVersion(Long planId, LocalDateTime at) {
+        List<PlanVersion> versions = planVersionRepository.findEffectiveVersions(planId, at, PageRequest.of(0, 1));
+        if (versions.isEmpty()) {
+            throw new ResourceNotFoundException("No existe una versión vigente para el plan solicitado");
+        }
+        return versions.get(0);
+    }
+
+    /**
+     * Aplica movimiento sobre wallet y registra ledger con idempotencia.
+     */
+    private int applyWalletMovement(
+            User user,
+            Integer amount,
+            TokenTransactionType type,
+            Long referenceId,
+            String idempotencyKey
+    ) {
+        if (idempotencyKey != null) {
+            Optional<TokenTransaction> existing = tokenTransactionRepository.findByIdempotencyKey(idempotencyKey);
+            if (existing.isPresent()) {
+                return getOrCreateWallet(user).getTokensAvailable();
+            }
+        }
+
+        TokenWallet wallet = getOrCreateWallet(user);
+        int normalizedAmount = normalizeAmountByType(amount, type);
+        int newBalance = wallet.getTokensAvailable() + normalizedAmount;
+        if (newBalance < 0) {
+            throw new BusinessException("Saldo insuficiente para completar la operación");
+        }
+
+        wallet.setTokensAvailable(newBalance);
+        wallet.setUpdatedAt(LocalDateTime.now());
+        tokenWalletRepository.save(wallet);
+
+        TokenTransaction transaction = new TokenTransaction();
+        transaction.setUser(user);
+    transaction.setAmount(Math.abs(amount));
+        transaction.setType(type);
+        transaction.setReferenceId(referenceId);
+        transaction.setIdempotencyKey(idempotencyKey);
+        tokenTransactionRepository.save(transaction);
+
+        return newBalance;
+    }
+
+    private TokenWallet getOrCreateWallet(User user) {
+        return tokenWalletRepository.findByUserId(user.getId())
+                .orElseGet(() -> tokenWalletRepository.save(
+                        TokenWallet.builder()
+                                .user(user)
+                        .tokensAvailable(0)
+                                .updatedAt(LocalDateTime.now())
+                                .build()
+                ));
+    }
+
+    private CreateSubscriptionResponse buildResponse(
+            User user,
+            PlanVersion planVersion,
+            LocalDateTime startDate,
+            Integer tokenBalance
+    ) {
+        SubscriptionPlanDTO planDTO = new SubscriptionPlanDTO(
+                planVersion.getPlan().getId(),
+                planVersion.getPlan().getName(),
+                planVersion.getTokenLimit()
+        );
+
+        CreateSubscriptionResponse response = new CreateSubscriptionResponse();
+        response.setUserId(user.getId());
+        response.setPlan(planDTO);
+        response.setNewTokenBalance(tokenBalance);
+        response.setStartDate(startDate);
+        return response;
+    }
+
+    private User findAuthenticatedUser(String authenticatedEmail) {
+        return userRepository.findByEmail(authenticatedEmail)
+                .orElseThrow(() -> new ResourceNotFoundException("Usuario autenticado no encontrado"));
+    }
+
+    private PageRequest buildPageRequest(SubscriptionHistoryQueryRequest request) {
+        int resolvedPage = request.getPage() == null || request.getPage() < 0 ? DEFAULT_PAGE : request.getPage();
+        int resolvedSize = request.getSize() == null || request.getSize() <= 0
+                ? DEFAULT_SIZE
+                : Math.min(request.getSize(), MAX_SIZE);
+        return PageRequest.of(resolvedPage, resolvedSize, Sort.by(Sort.Direction.DESC, "startDate"));
+    }
+
+    private boolean isSamePlan(Subscription subscription, PlanVersion targetPlanVersion) {
+        return subscription.getPlanVersion().getPlan().getId().equals(targetPlanVersion.getPlan().getId());
+    }
+
+    private void validateUpgrade(Subscription activeSubscription, PlanVersion requestedPlanVersion) {
+        int currentPlanTokens = activeSubscription.getPlanVersion().getTokenLimit();
+        int requestedPlanTokens = requestedPlanVersion.getTokenLimit();
+        if (requestedPlanTokens < currentPlanTokens) {
+            throw new BusinessException(
+                    "No se permite cambiar a un plan de menor nivel mientras exista una suscripción activa"
+            );
+        }
+    }
+
+    private void expireSubscription(Subscription subscription, LocalDateTime when) {
+        subscription.setStatus(SubscriptionStatus.EXPIRED);
+        subscription.setEndDate(when);
+        subscriptionRepository.save(subscription);
+    }
+
+    private Subscription createActiveSubscription(User user, PlanVersion planVersion, LocalDateTime startDate) {
+        Subscription subscription = new Subscription();
+        subscription.setUser(user);
+        subscription.setPlanVersion(planVersion);
+        subscription.setStartDate(startDate);
+        subscription.setEndDate(startDate.plusDays(SUBSCRIPTION_PERIOD_DAYS));
+        subscription.setStatus(SubscriptionStatus.ACTIVE);
+        subscription.setAutoRenew(true);
+        return subscriptionRepository.save(subscription);
+    }
+
+    private int normalizeAmountByType(Integer amount, TokenTransactionType type) {
+        int absoluteAmount = Math.abs(amount);
+        if (type == TokenTransactionType.SUBSTRACT) {
+            return -absoluteAmount;
+        }
+        return absoluteAmount;
+    }
+
+    private String buildIdempotencyKey(String action, String... values) {
+        String raw = action + ":" + String.join(":", values);
+        return UUID.nameUUIDFromBytes(raw.getBytes(StandardCharsets.UTF_8)).toString();
+    }
+
+    private ListSubscriptionHistoryResponse mapHistory(Subscription subscription) {
+        return new ListSubscriptionHistoryResponse(
+                subscription.getId(),
+                subscription.getPlanVersion().getPlan().getName(),
+                subscription.getStartDate(),
+                subscription.getEndDate(),
+                subscription.getStatus() == SubscriptionStatus.ACTIVE
+        );
+    }
+
+    private MyActiveSubscriptionResponse mapMyActiveSubscription(Subscription subscription) {
+        SubscriptionPlanDTO planDTO = SubscriptionPlanDTO.builder()
+                .id(subscription.getPlanVersion().getPlan().getId())
+                .name(subscription.getPlanVersion().getPlan().getName())
+                .tokenAmount(subscription.getPlanVersion().getTokenLimit())
+                .build();
+
+        return MyActiveSubscriptionResponse.builder()
+                .id(subscription.getId())
+                .plan(planDTO)
+                .startDate(subscription.getStartDate())
+                .endDate(subscription.getEndDate())
+                .active(subscription.getStatus() == SubscriptionStatus.ACTIVE)
+                .build();
+    }
+}

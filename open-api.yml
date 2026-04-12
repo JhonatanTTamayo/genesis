@@ -547,6 +547,55 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/subscriptions/history:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get subscription history for authenticated user
+      operationId: getMySubscriptionHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Subscription history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubscriptionHistoryItemResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Authenticated user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/v1/operations:
     get:
       tags:
@@ -1261,6 +1310,29 @@ components:
         active:
           type: boolean
           example: true
+
+    SubscriptionHistoryItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 21
+        planName:
+          type: string
+          example: Pro
+        startDate:
+          type: string
+          format: date-time
+          example: '2026-04-06T10:30:00'
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        active:
+          type: boolean
+          example: false
 
     OperationResponse:
       type: object

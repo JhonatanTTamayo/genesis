@@ -1,7 +1,7 @@
 package com.breaze.genesis.controller;
 
-import com.breaze.genesis.dto.response.UserProfileResponse;
-import com.breaze.genesis.service.UserService;
+import com.breaze.genesis.dto.auth.responses.UserProfileResponse;
+import com.breaze.genesis.services.IUserService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class UserController {
 
-    private final UserService userService;
+    private final IUserService userService;
 
     @GetMapping("/me")
     public UserProfileResponse getMyProfile(Authentication authentication) {

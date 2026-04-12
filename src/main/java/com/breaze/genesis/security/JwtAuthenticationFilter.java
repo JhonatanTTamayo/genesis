@@ -1,7 +1,6 @@
 package com.breaze.genesis.security;
 
-import com.breaze.genesis.service.CustomUserDetailsService;
-import com.breaze.genesis.service.JwtService;
+import com.breaze.genesis.services.impl.UserDetailsServiceImpl;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -20,30 +19,26 @@ import java.io.IOException;
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
-    private final JwtService jwtService;
-    private final CustomUserDetailsService userDetailsService;
+    private final JwtUtil jwtUtil;
+    private final UserDetailsServiceImpl userDetailsService;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-
         String authHeader = request.getHeader("Authorization");
-
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
-
         String jwt = authHeader.substring(7);
-
         try {
-            String username = jwtService.extractUsername(jwt);
+            String username = jwtUtil.extractUsername(jwt);
 
             if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                 UserDetails userDetails = userDetailsService.loadUserByUsername(username);
 
-                if (jwtService.isTokenValid(jwt, userDetails)) {
+                if (jwtUtil.isTokenValid(jwt, userDetails)) {
                     UsernamePasswordAuthenticationToken authToken =
                             new UsernamePasswordAuthenticationToken(
                                     userDetails,
@@ -58,7 +53,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         } catch (Exception ignored) {
             // Token inválido/expirado/mal formado => no autenticamos (evita 500)
         }
-
         filterChain.doFilter(request, response);
     }
 }
