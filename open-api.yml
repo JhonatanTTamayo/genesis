@@ -1,0 +1,1787 @@
+openapi: 3.0.3
+info:
+  title: Genesis API
+  description: Genesis Project API - Breaze in the Moon
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local server
+
+tags:
+  - name: Auth
+    description: Authentication endpoints
+  - name: Users
+    description: User profile and management endpoints
+  - name: Plans
+    description: Plan catalog and management endpoints
+  - name: Subscriptions
+    description: Subscription endpoints
+  - name: Operations
+    description: Operation catalog and execution endpoints
+  - name: Transactions
+    description: User transaction history endpoints
+  - name: Metrics
+    description: Operational metrics endpoints
+
+paths:
+  /api/v1/auth/register:
+    post:
+      tags:
+        - Auth
+      summary: Register a new user
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            example:
+              fullName: John Doe
+              email: john.doe@example.com
+              password: 12345678
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/login:
+    post:
+      tags:
+        - Auth
+      summary: Authenticate user and retrieve JWT
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: john.doe@example.com
+              password: 12345678
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Inactive user
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/users:
+    get:
+      tags:
+        - Users
+      summary: List users
+      operationId: listUsers
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            default: id,asc
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPageResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/users/me:
+    get:
+      tags:
+        - Users
+      summary: Get authenticated user profile
+      operationId: getMyProfile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfileResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/users/{id}/status:
+    patch:
+      tags:
+        - Users
+      summary: Update user status
+      operationId: updateUserStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserStatusUpdateRequest'
+      responses:
+        '200':
+          description: User status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserStatusResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/users/{id}/token-recharges:
+    post:
+      tags:
+        - Users
+      summary: Recharge user tokens
+      operationId: createUserTokenRecharge
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RechargeRequest'
+      responses:
+        '201':
+          description: Token recharge created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RechargeResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: User not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/plans:
+    get:
+      tags:
+        - Plans
+      summary: List available plans
+      operationId: getPlans
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            default: name,asc
+      responses:
+        '200':
+          description: Plans retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanPageResponse'
+
+    post:
+      tags:
+        - Plans
+      summary: Create plan
+      operationId: createPlan
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanUpsertRequest'
+      responses:
+        '201':
+          description: Plan created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/plans/{id}:
+    get:
+      tags:
+        - Plans
+      summary: Get plan by id
+      operationId: getPlanById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: Plan identifier
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Plan retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanResponse'
+        '404':
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Plans
+      summary: Update plan
+      operationId: updatePlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlanUpsertRequest'
+      responses:
+        '200':
+          description: Plan updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    delete:
+      tags:
+        - Plans
+      summary: Delete plan
+      operationId: deletePlan
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Plan deleted successfully
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Plan has active subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/subscriptions:
+    post:
+      tags:
+        - Subscriptions
+      summary: Subscribe authenticated user to a plan
+      operationId: createSubscription
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SubscriptionRequest'
+            example:
+              planId: 2
+      responses:
+        '201':
+          description: Subscription created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriptionResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Plan not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/subscriptions/me:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get authenticated user active subscription
+      operationId: getMySubscription
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Subscription retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MySubscriptionResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Active subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/operations:
+    get:
+      tags:
+        - Operations
+      summary: List available operations catalog
+      operationId: getOperations
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            default: code,asc
+      responses:
+        '200':
+          description: Operations retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationPageResponse'
+
+  /api/v1/operations/{code}:
+    get:
+      tags:
+        - Operations
+      summary: Get operation by code
+      operationId: getOperationByCode
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+            example: OP-01
+      responses:
+        '200':
+          description: Operation retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationResponse'
+        '404':
+          description: Operation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/operations/{code}/status:
+    patch:
+      tags:
+        - Operations
+      summary: Update operation status
+      operationId: updateOperationStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OperationStatusUpdateRequest'
+      responses:
+        '200':
+          description: Operation status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Operation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/operations/credit-executions:
+    post:
+      tags:
+        - Operations
+      summary: Execute credit calculation
+      operationId: createCreditExecution
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreditOperationRequest'
+      responses:
+        '200':
+          description: Operation executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreditOperationResponse'
+        '400':
+          description: Validation or business rule error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Insufficient balance or business conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/operations/currency-conversions:
+    post:
+      tags:
+        - Operations
+      summary: Execute currency conversion COP USD
+      operationId: createCurrencyConversion
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurrencyConverterRequest'
+      responses:
+        '200':
+          description: Operation executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurrencyConverterResponse'
+        '400':
+          description: Validation or business rule error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Insufficient balance or business conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/operations/bmi-calculations:
+    post:
+      tags:
+        - Operations
+      summary: Execute BMI calculation
+      operationId: createBmiCalculation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BmiRequest'
+      responses:
+        '200':
+          description: Operation executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BmiResponse'
+        '400':
+          description: Validation or business rule error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Insufficient balance or business conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/operations/sleep-calculations:
+    post:
+      tags:
+        - Operations
+      summary: Execute sleep calculation
+      operationId: createSleepCalculation
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SleepRequest'
+      responses:
+        '200':
+          description: Operation executed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SleepResponse'
+        '400':
+          description: Validation or business rule error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Insufficient balance or business conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/transactions/me:
+    get:
+      tags:
+        - Transactions
+      summary: Get authenticated user transaction history
+      operationId: getMyTransactions
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+        - name: sort
+          in: query
+          required: false
+          schema:
+            type: string
+            default: executedAt,desc
+      responses:
+        '200':
+          description: Transaction history retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionPageResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/transactions/{id}:
+    get:
+      tags:
+        - Transactions
+      summary: Get transaction detail
+      operationId: getTransactionById
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Transaction retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransactionResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Transaction not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/exchange-rate:
+    get:
+      tags:
+        - Operations
+      summary: Get current exchange rate
+      operationId: getExchangeRate
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Exchange rate retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeRateResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+    put:
+      tags:
+        - Operations
+      summary: Update exchange rate
+      operationId: updateExchangeRate
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExchangeRateRequest'
+      responses:
+        '200':
+          description: Exchange rate updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExchangeRateResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/metrics/token-consumption:
+    get:
+      tags:
+        - Metrics
+      summary: Get daily token consumption
+      operationId: getTokenConsumptionMetrics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Metric retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenConsumptionMetricResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/metrics/top-operations:
+    get:
+      tags:
+        - Metrics
+      summary: Get most executed operations
+      operationId: getTopOperationsMetrics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Metric retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopOperationsMetricResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/metrics/top-users:
+    get:
+      tags:
+        - Metrics
+      summary: Get users with highest token consumption
+      operationId: getTopUsersMetrics
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Metric retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopUsersMetricResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - fullName
+        - email
+        - password
+      properties:
+        fullName:
+          type: string
+          maxLength: 150
+          example: John Doe
+        email:
+          type: string
+          format: email
+          example: john.doe@example.com
+        password:
+          type: string
+          minLength: 8
+          example: 12345678
+
+    RegisterResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        fullName:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          example: john.doe@example.com
+        role:
+          type: string
+          example: USER
+        active:
+          type: boolean
+          example: true
+        tokenBalance:
+          type: integer
+          example: 0
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-04-06T10:00:00'
+
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: john.doe@example.com
+        password:
+          type: string
+          example: 12345678
+
+    LoginResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          example: jwt-token-here
+        type:
+          type: string
+          example: Bearer
+        expiresIn:
+          type: integer
+          example: 86400
+
+    UserProfileResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        fullName:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          example: john.doe@example.com
+        role:
+          type: string
+          example: USER
+        active:
+          type: boolean
+          example: true
+        tokenBalance:
+          type: integer
+          example: 200
+        activePlan:
+          $ref: '#/components/schemas/PlanSummary'
+
+    PlanSummary:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: Free
+        tokenAmount:
+          type: integer
+          example: 200
+
+    PlanResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        name:
+          type: string
+          example: Free
+        tokenAmount:
+          type: integer
+          example: 200
+        active:
+          type: boolean
+          example: true
+
+    PlanPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/PlanResponse'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 10
+        totalElements:
+          type: integer
+          example: 3
+        totalPages:
+          type: integer
+          example: 1
+        last:
+          type: boolean
+          example: true
+
+    SubscriptionRequest:
+      type: object
+      required:
+        - planId
+      properties:
+        planId:
+          type: integer
+          format: int64
+          example: 2
+
+    SubscriptionResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Subscription created successfully
+        userId:
+          type: integer
+          format: int64
+          example: 1
+        plan:
+          $ref: '#/components/schemas/PlanSummary'
+        newTokenBalance:
+          type: integer
+          example: 1200
+        startDate:
+          type: string
+          format: date-time
+          example: '2026-04-06T10:30:00'
+        active:
+          type: boolean
+          example: true
+
+    MySubscriptionResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 5
+        plan:
+          $ref: '#/components/schemas/PlanSummary'
+        startDate:
+          type: string
+          format: date-time
+          example: '2026-04-06T10:30:00'
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        active:
+          type: boolean
+          example: true
+
+    OperationResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        code:
+          type: string
+          example: OP-01
+        name:
+          type: string
+          example: Credit payment calculator
+        baseCost:
+          type: integer
+          example: 50
+        active:
+          type: boolean
+          example: true
+
+    OperationPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperationResponse'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 10
+        totalElements:
+          type: integer
+          example: 4
+        totalPages:
+          type: integer
+          example: 1
+        last:
+          type: boolean
+          example: true
+
+    CreditOperationRequest:
+      type: object
+      required:
+        - principalAmount
+        - installmentCount
+        - monthlyRate
+      properties:
+        principalAmount:
+          type: number
+          format: double
+          example: 10000000
+        installmentCount:
+          type: integer
+          example: 24
+        monthlyRate:
+          type: number
+          format: double
+          example: 1.5
+
+    CreditInstallmentItem:
+      type: object
+      properties:
+        installmentNumber:
+          type: integer
+          example: 1
+        principalPaid:
+          type: number
+          format: double
+          example: 350000
+        interestPaid:
+          type: number
+          format: double
+          example: 150000
+        remainingBalance:
+          type: number
+          format: double
+          example: 9650000
+
+    CreditOperationResponse:
+      type: object
+      properties:
+        monthlyInstallment:
+          type: number
+          format: double
+          example: 500000
+        totalPaid:
+          type: number
+          format: double
+          example: 12000000
+        totalInterest:
+          type: number
+          format: double
+          example: 2000000
+        amortizationSchedule:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreditInstallmentItem'
+
+    CurrencyConverterRequest:
+      type: object
+      required:
+        - amount
+        - sourceCurrency
+      properties:
+        amount:
+          type: number
+          format: double
+          example: 100
+        sourceCurrency:
+          type: string
+          example: USD
+
+    CurrencyConverterResponse:
+      type: object
+      properties:
+        convertedAmount:
+          type: number
+          format: double
+          example: 400000
+        conversionDirection:
+          type: string
+          example: USD_TO_COP
+        appliedRate:
+          type: number
+          format: double
+          example: 4000
+        rateUpdatedAt:
+          type: string
+          format: date-time
+          example: '2026-04-06T08:00:00'
+
+    BmiRequest:
+      type: object
+      required:
+        - weightKg
+        - heightCm
+      properties:
+        weightKg:
+          type: number
+          format: double
+          example: 70
+        heightCm:
+          type: number
+          format: double
+          example: 175
+
+    BmiResponse:
+      type: object
+      properties:
+        bmi:
+          type: number
+          format: double
+          example: 22.86
+        category:
+          type: string
+          example: Normal weight
+        healthyMinWeight:
+          type: number
+          format: double
+          example: 56.66
+        healthyMaxWeight:
+          type: number
+          format: double
+          example: 76.26
+        weightDifferenceMessage:
+          type: string
+          example: Within healthy range
+
+    SleepRequest:
+      type: object
+      required:
+        - mode
+        - time
+      properties:
+        mode:
+          type: string
+          example: WAKE_UP_TIME
+        time:
+          type: string
+          example: '06:30'
+        minutesToFallAsleep:
+          type: integer
+          example: 14
+
+    SleepOption:
+      type: object
+      properties:
+        calculatedTime:
+          type: string
+          example: '21:16'
+        totalSleepHours:
+          type: number
+          format: double
+          example: 9.0
+        quality:
+          type: string
+          example: Ideal
+
+    SleepResponse:
+      type: object
+      properties:
+        options:
+          type: array
+          items:
+            $ref: '#/components/schemas/SleepOption'
+
+    TransactionResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 10
+        operationCode:
+          type: string
+          example: OP-03
+        operationName:
+          type: string
+          example: BMI Calculator
+        inputJson:
+          type: string
+          example: '{"weightKg":70,"heightCm":175}'
+        outputJson:
+          type: string
+          example: '{"bmi":22.86,"category":"Normal weight"}'
+        inputTokens:
+          type: integer
+          example: 7
+        outputTokens:
+          type: integer
+          example: 10
+        baseCost:
+          type: integer
+          example: 15
+        totalTokensConsumed:
+          type: integer
+          example: 32
+        status:
+          type: string
+          example: SUCCESS
+        errorMessage:
+          type: string
+          nullable: true
+          example: null
+        executedAt:
+          type: string
+          format: date-time
+          example: '2026-04-06T10:45:00'
+
+    TransactionPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/TransactionResponse'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 10
+        totalElements:
+          type: integer
+          example: 25
+        totalPages:
+          type: integer
+          example: 3
+        last:
+          type: boolean
+          example: false
+
+    UserListItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        fullName:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          example: john.doe@example.com
+        active:
+          type: boolean
+          example: true
+        tokenBalance:
+          type: integer
+          example: 1200
+        activePlan:
+          $ref: '#/components/schemas/PlanSummary'
+
+    UserPageResponse:
+      type: object
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/UserListItemResponse'
+        page:
+          type: integer
+          example: 0
+        size:
+          type: integer
+          example: 10
+        totalElements:
+          type: integer
+          example: 15
+        totalPages:
+          type: integer
+          example: 2
+        last:
+          type: boolean
+          example: false
+
+    UserStatusResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: User status updated successfully
+        userId:
+          type: integer
+          format: int64
+          example: 1
+        active:
+          type: boolean
+          example: true
+
+    UserStatusUpdateRequest:
+      type: object
+      required:
+        - active
+      properties:
+        active:
+          type: boolean
+          example: true
+
+    OperationStatusUpdateRequest:
+      type: object
+      required:
+        - active
+      properties:
+        active:
+          type: boolean
+          example: true
+
+    RechargeRequest:
+      type: object
+      required:
+        - tokens
+      properties:
+        tokens:
+          type: integer
+          example: 500
+        reason:
+          type: string
+          example: Administrative manual recharge
+
+    RechargeResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Recharge completed successfully
+        userId:
+          type: integer
+          format: int64
+          example: 1
+        tokensAdded:
+          type: integer
+          example: 500
+        newTokenBalance:
+          type: integer
+          example: 1700
+        createdAt:
+          type: string
+          format: date-time
+          example: '2026-04-06T11:00:00'
+
+    PlanUpsertRequest:
+      type: object
+      required:
+        - name
+        - tokenAmount
+      properties:
+        name:
+          type: string
+          example: Pro Plus
+        tokenAmount:
+          type: integer
+          example: 2500
+        active:
+          type: boolean
+          example: true
+
+    ExchangeRateRequest:
+      type: object
+      required:
+        - copPerUsd
+      properties:
+        copPerUsd:
+          type: number
+          format: double
+          example: 4000.50
+
+    ExchangeRateResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        copPerUsd:
+          type: number
+          format: double
+          example: 4000.50
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-04-06T11:10:00'
+
+    TokenConsumptionMetricItem:
+      type: object
+      properties:
+        date:
+          type: string
+          example: '2026-04-06'
+        tokensConsumed:
+          type: integer
+          example: 320
+
+    TokenConsumptionMetricResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TokenConsumptionMetricItem'
+
+    TopOperationMetricItem:
+      type: object
+      properties:
+        operationCode:
+          type: string
+          example: OP-03
+        operationName:
+          type: string
+          example: BMI Calculator
+        executions:
+          type: integer
+          example: 25
+
+    TopOperationsMetricResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopOperationMetricItem'
+
+    TopUserMetricItem:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+          example: 1
+        fullName:
+          type: string
+          example: John Doe
+        totalTokensConsumed:
+          type: integer
+          example: 980
+
+    TopUsersMetricResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/TopUserMetricItem'
+
+    ValidationErrorItem:
+      type: object
+      properties:
+        field:
+          type: string
+          example: email
+        message:
+          type: string
+          example: must be a valid email
+
+    ValidationErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Validation error
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationErrorItem'
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-04-06T10:30:00'
+
+    ErrorResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          example: Resource not found
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-04-06T10:30:00'
