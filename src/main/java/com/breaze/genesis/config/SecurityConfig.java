@@ -36,13 +36,13 @@ public class SecurityConfig {
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // Public — registration and login
-                    .requestMatchers("/auth/**", "/api/v1/auth/**").permitAll()
-                    // Authorization at filter-chain level to avoid body parsing before role checks.
-                    .requestMatchers(HttpMethod.PUT, "/api/v1/plans/**").hasRole("ADMIN")
-                    .requestMatchers(HttpMethod.DELETE, "/api/v1/plans/**").hasRole("ADMIN")
+                        .requestMatchers("/auth/**", "/api/v1/auth/**").permitAll()
+                        // Authorization at filter-chain level to avoid body parsing before role checks.
+                        .requestMatchers(HttpMethod.PUT, "/api/v1/plans/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/v1/plans/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/wallet/recharge").hasRole("ADMIN")
-                        // Endpoints without @PreAuthorize are publicly accessible
-                        .anyRequest().permitAll()
+                        // Require authentication for every other endpoint unless explicitly public above.
+                        .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex
                         .authenticationEntryPoint((req, res, e) ->
