@@ -1,14 +1,12 @@
 package com.breaze.genesis.services.impl;
 
-import com.breaze.genesis.dto.wallet.dto.WalletTransactionItemDTO;
 import com.breaze.genesis.dto.wallet.requests.TokenRechargeRequest;
 import com.breaze.genesis.dto.wallet.requests.WalletBalanceRequest;
-import com.breaze.genesis.dto.wallet.requests.WalletTransactionHistoryRequest;
 import com.breaze.genesis.dto.wallet.responses.TokenRechargeResponse;
 import com.breaze.genesis.dto.wallet.responses.WalletBalanceResponse;
-import com.breaze.genesis.dto.wallet.responses.WalletTransactionHistoryResponse;
 import com.breaze.genesis.entity.User;
 import com.breaze.genesis.entity.tokens.TokenTransaction;
+import com.breaze.genesis.entity.tokens.TokenTransactionReferenceType;
 import com.breaze.genesis.entity.tokens.TokenWallet;
 import com.breaze.genesis.exceptions.ResourceNotFoundException;
 import com.breaze.genesis.repository.IUserRepository;
@@ -18,9 +16,6 @@ import com.breaze.genesis.services.IWalletService;
 import lombok.RequiredArgsConstructor;
 import java.time.LocalDateTime;
 
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,10 +28,6 @@ import org.springframework.transaction.annotation.Transactional;
  * @author donpedromz
  */
 public class WalletServiceImpl implements IWalletService {
-
-    private static final int DEFAULT_PAGE = 0;
-    private static final int DEFAULT_SIZE = 10;
-    private static final int MAX_SIZE = 50;
 
     private final IUserRepository userRepository;
     private final ITokenWalletRepository tokenWalletRepository;
@@ -83,40 +74,11 @@ public class WalletServiceImpl implements IWalletService {
                 .build();
     }
 
-        /**
-         * Obtiene el historial paginado de transacciones del usuario autenticado.
-         *
-         * @param request solicitud con correo y paginacion
-         * @return transacciones paginadas del wallet
-         */
-    @Override
-    @Transactional(readOnly = true)
-    public WalletTransactionHistoryResponse getMyTransactions(WalletTransactionHistoryRequest request) {
-        User user = findAuthenticatedUser(request.getAuthenticatedEmail());
-
-        int page = request.getPage() == null || request.getPage() < 0 ? DEFAULT_PAGE : request.getPage();
-        int size = request.getSize() == null || request.getSize() <= 0
-                ? DEFAULT_SIZE
-                : Math.min(request.getSize(), MAX_SIZE);
-
-        PageRequest pageRequest = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        Page<TokenTransaction> transactions = tokenTransactionRepository.findByUserId(user.getId(), pageRequest);
-
-        return WalletTransactionHistoryResponse.builder()
-                .content(transactions.getContent().stream().map(this::mapTransaction).toList())
-                .page(transactions.getNumber())
-                .size(transactions.getSize())
-                .totalElements(transactions.getTotalElements())
-                .totalPages(transactions.getTotalPages())
-                .last(transactions.isLast())
-                .build();
-    }
-
     @Override
     @Transactional
     public TokenRechargeResponse rechargeTokens(TokenRechargeRequest request) {
         User targetUser = userRepository.findById(request.getUserId())
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado con el ID especificado"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found with the specified ID"));
 
         // Crear wallet si no existe
         TokenWallet wallet = tokenWalletRepository.findByUserId(targetUser.getId())
@@ -126,8 +88,8 @@ public class WalletServiceImpl implements IWalletService {
         TokenTransaction transaction = TokenTransaction.builder()
                 .user(targetUser)
                 .amount(request.getAmount())  // amount > 0 y será mantenido como remaining_amount
-                .type(com.breaze.genesis.entity.tokens.TokenTransactionType.ADD)
-                .description("Manual token recharge")
+                .referenceType(TokenTransactionReferenceType.ADMIN_RECHARGE)
+                .referenceId(null)
                 .expiresAt(null)  // Las recargas por admin no expiran
                 .createdAt(LocalDateTime.now())
                 .build();
@@ -163,23 +125,6 @@ public class WalletServiceImpl implements IWalletService {
          */
     private User findAuthenticatedUser(String authenticatedEmail) {
         return userRepository.findByEmail(authenticatedEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario autenticado no encontrado"));
-    }
-
-        /**
-         * Convierte una transaccion de dominio a su DTO de respuesta.
-         *
-         * @param transaction transaccion de tokens
-         * @return item DTO de transaccion
-         */
-    private WalletTransactionItemDTO mapTransaction(TokenTransaction transaction) {
-        return WalletTransactionItemDTO.builder()
-                .id(transaction.getId())
-                .amount(transaction.getAmount())
-                .type(transaction.getType())
-                .description(transaction.getDescription())
-                .expiresAt(transaction.getExpiresAt())
-                .createdAt(transaction.getCreatedAt())
-                .build();
+                .orElseThrow(() -> new ResourceNotFoundException("Authenticated user not found"));
     }
 }

@@ -9,7 +9,8 @@ import com.breaze.genesis.dto.metrics.responses.TopUsersMetricResponse;
 import com.breaze.genesis.entity.metrics.DailyTokenConsumptionMetricProjection;
 import com.breaze.genesis.entity.metrics.TopOperationMetricProjection;
 import com.breaze.genesis.entity.metrics.TopUserMetricProjection;
-import com.breaze.genesis.repository.token.ITokenTransactionRepository;
+import com.breaze.genesis.entity.transactions.OperationExecutionStatus;
+import com.breaze.genesis.repository.operation.IOperationExecutionRepository;
 import com.breaze.genesis.services.IMetricsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -21,12 +22,12 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MetricsService implements IMetricsService {
 
-    private final ITokenTransactionRepository tokenTransactionRepository;
+    private final IOperationExecutionRepository operationExecutionRepository;
 
     @Override
     @Transactional(readOnly = true)
     public TokenConsumptionMetricResponse getTokenConsumptionMetrics() {
-        List<TokenConsumptionMetricItem> items = tokenTransactionRepository.findDailyTokenConsumptionMetrics()
+        List<TokenConsumptionMetricItem> items = operationExecutionRepository.findDailyTokenConsumptionMetrics(OperationExecutionStatus.SUCCESS)
                 .stream()
                 .map(this::toTokenConsumptionItem)
                 .toList();
@@ -39,7 +40,7 @@ public class MetricsService implements IMetricsService {
     @Override
     @Transactional(readOnly = true)
     public TopOperationsMetricResponse getTopOperationsMetrics() {
-        List<TopOperationMetricItem> items = tokenTransactionRepository.findTopOperationMetrics()
+        List<TopOperationMetricItem> items = operationExecutionRepository.findTopOperationMetrics(OperationExecutionStatus.SUCCESS)
                 .stream()
                 .map(this::toTopOperationItem)
                 .toList();
@@ -52,7 +53,7 @@ public class MetricsService implements IMetricsService {
     @Override
     @Transactional(readOnly = true)
     public TopUsersMetricResponse getTopUsersMetrics() {
-        List<TopUserMetricItem> items = tokenTransactionRepository.findTopUserMetrics()
+        List<TopUserMetricItem> items = operationExecutionRepository.findTopUserMetrics(OperationExecutionStatus.SUCCESS)
                 .stream()
                 .map(this::toTopUserItem)
                 .toList();

@@ -1,10 +1,12 @@
 package com.breaze.genesis.services.impl;
 
 import com.breaze.genesis.dto.plan.dto.PlanItemDTO;
+import com.breaze.genesis.dto.plan.requests.CreatePlanRequest;
 import com.breaze.genesis.dto.plan.requests.DeletePlanRequest;
 import com.breaze.genesis.dto.plan.requests.ListPlansRequest;
 import com.breaze.genesis.dto.plan.requests.UpdatePlanRequest;
 import com.breaze.genesis.dto.plan.requests.UpdatePlanStatusRequest;
+import com.breaze.genesis.dto.plan.responses.CreatePlanResponse;
 import com.breaze.genesis.dto.plan.responses.DeletePlanResponse;
 import com.breaze.genesis.dto.plan.responses.ListPlansResponse;
 import com.breaze.genesis.dto.plan.responses.UpdatePlanResponse;
@@ -45,6 +47,41 @@ public class PlanServiceImpl implements IPlanService {
     private final IPlanVersionRepository planVersionRepository;
     private final ISubscriptionRepository subscriptionRepository;
 
+        @Override
+        @Transactional
+        public CreatePlanResponse createPlan(CreatePlanRequest request) {
+        validateUniqueName(request.getPlanName(), null);
+
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime resolvedVersionValidTo = resolveVersionValidTo(request.getVersionValidTo(), now);
+
+        Plan plan = Plan.builder()
+            .name(request.getPlanName().trim())
+            .description(request.getPlanDescription().trim())
+            .build();
+
+        Plan savedPlan = planRepository.save(plan);
+
+        PlanVersion firstVersion = planVersionRepository.save(
+            PlanVersion.builder()
+                .plan(savedPlan)
+                .tokenLimit(request.getTokenLimitPerCycle())
+                .durationSeconds(request.getBillingCycleDurationSeconds())
+                .validFrom(now)
+                .validTo(resolvedVersionValidTo)
+                .build()
+        );
+
+        return CreatePlanResponse.builder()
+            .planId(savedPlan.getId())
+            .planName(savedPlan.getName())
+            .planDescription(savedPlan.getDescription())
+            .tokenLimitPerCycle(firstVersion.getTokenLimit())
+            .billingCycleDurationSeconds(firstVersion.getDurationSeconds())
+            .versionValidTo(firstVersion.getValidTo())
+            .build();
+        }
+
     /**
      * Obtiene el listado paginado del catalogo de planes.
      *
@@ -83,7 +120,7 @@ public class PlanServiceImpl implements IPlanService {
     @Transactional
     public UpdatePlanResponse updatePlan(Long planId, UpdatePlanRequest request) {
         Plan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Plan no encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
 
         validateUniqueName(request.getPlanName(), planId);
 
@@ -269,9 +306,9 @@ public class PlanServiceImpl implements IPlanService {
      */
     private void validateUniqueName(String name, Long planId) {
         planRepository.findByName(name.trim())
-                .filter(existing -> !existing.getId().equals(planId))
+                .filter(existing -> planId == null || !existing.getId().equals(planId))
                 .ifPresent(existing -> {
-                    throw new BusinessException("Ya existe un plan con el nombre indicado");
+                    throw new BusinessException("A plan with the provided name already exists");
                 });
     }
 
@@ -305,7 +342,7 @@ public class PlanServiceImpl implements IPlanService {
         }
 
         if (!requestedValidTo.isAfter(versionValidFrom)) {
-            throw new BusinessException("versionValidTo debe ser posterior al inicio de vigencia de la nueva versión");
+            throw new BusinessException("versionValidTo must be later than the start of the new version validity");
         }
 
         return requestedValidTo;

@@ -1,9 +1,11 @@
 package com.breaze.genesis.controller;
 
+import com.breaze.genesis.dto.plan.requests.CreatePlanRequest;
 import com.breaze.genesis.dto.plan.requests.ListPlansRequest;
 import com.breaze.genesis.dto.plan.requests.DeletePlanRequest;
 import com.breaze.genesis.dto.plan.requests.UpdatePlanRequest;
 import com.breaze.genesis.dto.plan.requests.UpdatePlanStatusRequest;
+import com.breaze.genesis.dto.plan.responses.CreatePlanResponse;
 import com.breaze.genesis.dto.plan.responses.DeletePlanResponse;
 import com.breaze.genesis.dto.plan.responses.ListPlansResponse;
 import com.breaze.genesis.dto.plan.responses.UpdatePlanResponse;
@@ -11,8 +13,10 @@ import com.breaze.genesis.dto.plan.responses.UpdatePlanStatusResponse;
 import com.breaze.genesis.services.IPlanService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
@@ -43,8 +47,16 @@ public class PlanController {
      * @return respuesta paginada de planes
      */
     @GetMapping
+    @PreAuthorize("hasAnyRole('USER','ADMIN')")
     public ResponseEntity<ListPlansResponse> getPlans(@Valid @ModelAttribute ListPlansRequest request) {
         return ResponseEntity.ok(planService.getPlans(request));
+    }
+
+    @PostMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<CreatePlanResponse> createPlan(@Valid @RequestBody CreatePlanRequest request) {
+        CreatePlanResponse response = planService.createPlan(request);
+        return ResponseEntity.status(HttpStatus.CREATED).body(response);
     }
 
     /**

@@ -1,12 +1,9 @@
 package com.breaze.genesis.config;
 
-import com.breaze.genesis.entity.ExchangeRate;
-import com.breaze.genesis.entity.OperationCatalog;
+import com.breaze.genesis.entity.*;
 import com.breaze.genesis.entity.plan.Plan;
 import com.breaze.genesis.entity.plan.PlanVersion;
-import com.breaze.genesis.entity.Role;
 import com.breaze.genesis.entity.tokens.TokenWallet;
-import com.breaze.genesis.entity.User;
 import com.breaze.genesis.repository.*;
 import com.breaze.genesis.repository.plan.IPlanRepository;
 import com.breaze.genesis.repository.plan.IPlanVersionRepository;
@@ -74,7 +71,7 @@ public class DataInitializer implements CommandLineRunner {
     private void initializeOperations() {
         if (!operationRepository.existsByCode("OP-01")) {
             operationRepository.save(
-                    OperationCatalog.builder()
+                    Operation.builder()
                             .code("OP-01")
                             .name("¿Cuánto me cuesta ese crédito?")
                             .description("Calcula la tabla de amortización y las cuotas mensuales para un crédito simulado.")
@@ -86,7 +83,7 @@ public class DataInitializer implements CommandLineRunner {
 
         if (!operationRepository.existsByCode("OP-02")) {
             operationRepository.save(
-                    OperationCatalog.builder()
+                    Operation.builder()
                             .code("OP-02")
                             .name("Conversor COP ↔ USD")
                             .description("Convierte dinero entre Dólares y Pesos Colombianos usando la TRM actual.")
@@ -98,7 +95,7 @@ public class DataInitializer implements CommandLineRunner {
 
         if (!operationRepository.existsByCode("OP-03")) {
             operationRepository.save(
-                    OperationCatalog.builder()
+                    Operation.builder()
                             .code("OP-03")
                             .name("Calculadora de IMC")
                             .description("Calcula el Índice de Masa Corporal (IMC) y clasifica tu estado de peso.")
@@ -110,7 +107,7 @@ public class DataInitializer implements CommandLineRunner {
 
         if (!operationRepository.existsByCode("OP-04")) {
             operationRepository.save(
-                    OperationCatalog.builder()
+                    Operation.builder()
                             .code("OP-04")
                             .name("Calculadora de sueño")
                             .description("Determina los ciclos de sueño sugeridos con base en tu hora de descanso o despertar.")
