@@ -41,7 +41,10 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.PUT, "/api/v1/plans/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/plans/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/wallet/recharge").hasRole("ADMIN")
-                        // Require authentication for every other endpoint unless explicitly public above.
+                        .requestMatchers("/api/v1/health").permitAll()
+                        .requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users/me").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/metrics/**").hasRole("ADMIN")
                         .anyRequest().authenticated()
                 )
                 .exceptionHandling(ex -> ex
@@ -66,7 +69,6 @@ public class SecurityConfig {
     public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
         return config.getAuthenticationManager();
     }
-
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();
