@@ -1,8 +1,6 @@
 package com.breaze.genesis.entity.tokens;
 
 import com.breaze.genesis.entity.User;
-import com.breaze.genesis.entity.subscriptions.Subscription;
-import com.breaze.genesis.entity.transactions.OperationExecution;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -40,16 +38,12 @@ public class TokenTransaction {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "operation_execution_id")
-    private OperationExecution operationExecution;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "reference_type", nullable = false, length = 50)
+    private TokenTransactionReferenceType referenceType;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "subscription_id")
-    private Subscription subscription;
-
-    @Column(nullable = false, length = 255)
-    private String description;
+    @Column(name = "reference_id")
+    private Long referenceId;
 
     @Column(nullable = false)
     private Integer amount;
@@ -60,47 +54,40 @@ public class TokenTransaction {
     @Column(name = "expires_at")
     private LocalDateTime expiresAt;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private TokenTransactionType type;
-
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
     public void prePersist() {
         validateTransaction();
-        normalizeAmountByOperationSemantics();
+        normalizeAmountByReferenceSemantics();
         initializeRemainingAmount();
-
         if (this.createdAt == null) {
             this.createdAt = LocalDateTime.now();
         }
     }
 
     /**
-     * Valida que el monto y el tipo de transaccion sean correctos.
+     * Valida que el monto y la referencia de transaccion sean correctos.
      */
     private void validateTransaction() {
         if (this.amount == null || this.amount == 0) {
             throw new IllegalStateException("Transaction amount must be different from 0");
         }
-        if (this.type == null) {
-            throw new IllegalStateException("Transaction type is required");
+        if (this.referenceType == null) {
+            throw new IllegalStateException("Transaction reference type is required");
         }
     }
 
     /**
-     * Normaliza el monto (positivo o negativo) segun el tipo de transaccion.
+     * Normaliza el monto (positivo o negativo) segun el tipo de referencia.
      */
-    private void normalizeAmountByOperationSemantics() {
-        // ADD (top-up manual admin) y SUBSCRIPTION aportan (+)
-        if ((this.type == TokenTransactionType.ADD || this.type == TokenTransactionType.SUBSCRIPTION) && this.amount < 0) {
+    private void normalizeAmountByReferenceSemantics() {
+        if (this.referenceType.isTokenAdditionMovement() && this.amount < 0) {
             this.amount = Math.abs(this.amount);
         }
-        // CONSUMPTION sustrae (-)
-        if ((this.type == TokenTransactionType.CONSUMPTION) && this.amount > 0) {
-            this.amount = -this.amount;
+        if (this.referenceType.isTokenSubtractionMovement() && this.amount > 0) {
+            this.amount = -Math.abs(this.amount);
         }
     }
 

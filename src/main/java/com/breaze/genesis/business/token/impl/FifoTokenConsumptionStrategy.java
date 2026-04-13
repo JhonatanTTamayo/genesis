@@ -3,7 +3,7 @@ package com.breaze.genesis.business.token.impl;
 import com.breaze.genesis.business.token.TokenConsumptionStrategy;
 import com.breaze.genesis.entity.User;
 import com.breaze.genesis.entity.tokens.TokenTransaction;
-import com.breaze.genesis.entity.tokens.TokenTransactionType;
+import com.breaze.genesis.entity.tokens.TokenTransactionReferenceType;
 import com.breaze.genesis.entity.tokens.TokenWallet;
 import com.breaze.genesis.exceptions.BusinessException;
 import com.breaze.genesis.repository.token.ITokenTransactionRepository;
@@ -26,7 +26,7 @@ public class FifoTokenConsumptionStrategy implements TokenConsumptionStrategy {
 
     @Override
     @Transactional
-    public TokenTransaction consumeTokens(User user, int amount, String description) {
+    public TokenTransaction consumeTokens(User user, int amount) {
         if (amount <= 0) {
             throw new IllegalArgumentException("Amount to consume must be greater than 0");
         }
@@ -64,8 +64,8 @@ public class FifoTokenConsumptionStrategy implements TokenConsumptionStrategy {
         TokenTransaction consumptionTx = TokenTransaction.builder()
                 .user(user)
                 .amount(-amount)
-                .type(TokenTransactionType.CONSUMPTION)
-                .description(description)
+                .referenceType(TokenTransactionReferenceType.OPERATION_EXECUTION)
+                .referenceId(null)
                 .expiresAt(null)
                 .createdAt(LocalDateTime.now())
                 .build();

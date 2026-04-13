@@ -1,5 +1,6 @@
 package com.breaze.genesis.entity.transactions;
 
+import com.breaze.genesis.entity.Operation;
 import com.breaze.genesis.entity.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -28,23 +29,9 @@ public class OperationExecution {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
-    @Column(name = "operation_code", nullable = false, length = 20)
-    private String operationCode;
-
-    @Column(name = "operation_name", nullable = false, length = 150)
-    private String operationName;
-
-    @Column(name = "input_json", columnDefinition = "TEXT")
-    private String inputJson;
-
-    @Column(name = "output_json", columnDefinition = "TEXT")
-    private String outputJson;
-
-    @Column(name = "input_tokens", nullable = false)
-    private Integer inputTokens;
-
-    @Column(name = "output_tokens", nullable = false)
-    private Integer outputTokens;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "operation_catalog_id")
+    private Operation operation;
 
     @Column(name = "base_cost", nullable = false)
     private Integer baseCost;
@@ -56,9 +43,6 @@ public class OperationExecution {
     @Column(nullable = false, length = 20)
     private OperationExecutionStatus status;
 
-    @Column(name = "error_message", length = 500)
-    private String errorMessage;
-
     @Column(name = "executed_at", nullable = false)
     private LocalDateTime executedAt;
 
@@ -66,12 +50,6 @@ public class OperationExecution {
     public void prePersist() {
         if (this.executedAt == null) {
             this.executedAt = LocalDateTime.now();
-        }
-        if (this.inputTokens == null) {
-            this.inputTokens = 0;
-        }
-        if (this.outputTokens == null) {
-            this.outputTokens = 0;
         }
         if (this.baseCost == null) {
             this.baseCost = 0;
@@ -97,52 +75,12 @@ public class OperationExecution {
         this.user = user;
     }
 
-    public String getOperationCode() {
-        return operationCode;
+    public Operation getOperationCatalog() {
+        return operation;
     }
 
-    public void setOperationCode(String operationCode) {
-        this.operationCode = operationCode;
-    }
-
-    public String getOperationName() {
-        return operationName;
-    }
-
-    public void setOperationName(String operationName) {
-        this.operationName = operationName;
-    }
-
-    public String getInputJson() {
-        return inputJson;
-    }
-
-    public void setInputJson(String inputJson) {
-        this.inputJson = inputJson;
-    }
-
-    public String getOutputJson() {
-        return outputJson;
-    }
-
-    public void setOutputJson(String outputJson) {
-        this.outputJson = outputJson;
-    }
-
-    public Integer getInputTokens() {
-        return inputTokens;
-    }
-
-    public void setInputTokens(Integer inputTokens) {
-        this.inputTokens = inputTokens;
-    }
-
-    public Integer getOutputTokens() {
-        return outputTokens;
-    }
-
-    public void setOutputTokens(Integer outputTokens) {
-        this.outputTokens = outputTokens;
+    public void setOperationCatalog(Operation operation) {
+        this.operation = operation;
     }
 
     public Integer getBaseCost() {
@@ -167,14 +105,6 @@ public class OperationExecution {
 
     public void setStatus(OperationExecutionStatus status) {
         this.status = status;
-    }
-
-    public String getErrorMessage() {
-        return errorMessage;
-    }
-
-    public void setErrorMessage(String errorMessage) {
-        this.errorMessage = errorMessage;
     }
 
     public LocalDateTime getExecutedAt() {

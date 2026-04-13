@@ -2,22 +2,24 @@ package com.breaze.genesis.services.impl;
 
 import com.breaze.genesis.dto.transactions.responses.TransactionPageResponse;
 import com.breaze.genesis.dto.transactions.responses.TransactionResponse;
+import com.breaze.genesis.entity.Operation;
 import com.breaze.genesis.entity.User;
 import com.breaze.genesis.entity.tokens.TokenTransaction;
+import com.breaze.genesis.entity.tokens.TokenTransactionReferenceType;
 import com.breaze.genesis.entity.transactions.OperationExecution;
 import com.breaze.genesis.entity.transactions.OperationExecutionStatus;
 import com.breaze.genesis.exceptions.ResourceNotFoundException;
 import com.breaze.genesis.repository.IUserRepository;
 import com.breaze.genesis.repository.operation.IOperationExecutionRepository;
 import com.breaze.genesis.repository.token.ITokenTransactionRepository;
-import com.breaze.genesis.services.ITransactionService;
+import com.breaze.genesis.services.IOperationTransactionService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
-public class TransactionServiceImpl implements ITransactionService {
+public class TransactionServiceImpl implements IOperationTransactionService {
 
     private final IUserRepository userRepository;
     private final IOperationExecutionRepository operationExecutionRepository;
@@ -54,7 +56,7 @@ public class TransactionServiceImpl implements ITransactionService {
     public TransactionResponse getTransactionById(String email, Long transactionId) {
         User user = findUserByEmail(email);
         OperationExecution transaction = operationExecutionRepository.findByIdAndUserId(transactionId, user.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Transaccion no encontrada"));
+                .orElseThrow(() -> new ResourceNotFoundException("Transaction not found"));
         return mapToResponse(transaction);
     }
 
@@ -62,29 +64,23 @@ public class TransactionServiceImpl implements ITransactionService {
     @Transactional
     public void logSuccessfulOperation(
             User user,
-            String operationCode,
-            String operationName,
-            String inputJson,
-            String outputJson,
+            Operation operation,
             Integer baseCost,
             Integer totalTokensConsumed,
             TokenTransaction tokenTransaction
     ) {
         OperationExecution execution = buildExecution(
                 user,
-                operationCode,
-                operationName,
-                inputJson,
-                outputJson,
+                operation,
                 baseCost,
                 totalTokensConsumed,
-                OperationExecutionStatus.SUCCESS,
-                null
+            OperationExecutionStatus.SUCCESS
         );
         OperationExecution savedExecution = operationExecutionRepository.save(execution);
 
         if (tokenTransaction != null) {
-            tokenTransaction.setOperationExecution(savedExecution);
+            tokenTransaction.setReferenceType(TokenTransactionReferenceType.OPERATION_EXECUTION);
+            tokenTransaction.setReferenceId(savedExecution.getId());
             tokenTransactionRepository.save(tokenTransaction);
         }
     }
@@ -93,70 +89,51 @@ public class TransactionServiceImpl implements ITransactionService {
     @Transactional
     public void logFailedOperation(
             User user,
-            String operationCode,
-            String operationName,
-            String inputJson,
-            Integer baseCost,
-            String errorMessage
+            Operation operation,
+            Integer baseCost
     ) {
         OperationExecution execution = buildExecution(
                 user,
-                operationCode,
-                operationName,
-                inputJson,
-                null,
+                operation,
                 baseCost,
                 0,
-                OperationExecutionStatus.FAILED,
-                errorMessage
+                OperationExecutionStatus.FAILED
         );
         operationExecutionRepository.save(execution);
     }
 
     private OperationExecution buildExecution(
             User user,
-            String operationCode,
-            String operationName,
-            String inputJson,
-            String outputJson,
+            Operation operation,
             Integer baseCost,
             Integer totalTokensConsumed,
-            OperationExecutionStatus status,
-            String errorMessage
+            OperationExecutionStatus status
     ) {
         OperationExecution execution = new OperationExecution();
         execution.setUser(user);
-        execution.setOperationCode(operationCode);
-        execution.setOperationName(operationName);
-        execution.setInputJson(inputJson);
-        execution.setOutputJson(outputJson);
-        execution.setInputTokens(0);
-        execution.setOutputTokens(0);
+        execution.setOperationCatalog(operation);
         execution.setBaseCost(baseCost != null ? baseCost : 0);
         execution.setTotalTokensConsumed(totalTokensConsumed != null ? totalTokensConsumed : 0);
         execution.setStatus(status);
-        execution.setErrorMessage(errorMessage);
         return execution;
     }
 
     private User findUserByEmail(String email) {
         return userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
     }
 
     private TransactionResponse mapToResponse(OperationExecution execution) {
         TransactionResponse response = new TransactionResponse();
         response.setId(execution.getId());
-        response.setOperationCode(execution.getOperationCode());
-        response.setOperationName(execution.getOperationName());
-        response.setInputJson(execution.getInputJson());
-        response.setOutputJson(execution.getOutputJson());
-        response.setInputTokens(execution.getInputTokens());
-        response.setOutputTokens(execution.getOutputTokens());
+        if (execution.getOperationCatalog() != null) {
+            response.setOperationId(execution.getOperationCatalog().getId());
+            response.setOperationCode(execution.getOperationCatalog().getCode());
+            response.setOperationName(execution.getOperationCatalog().getName());
+        }
         response.setBaseCost(execution.getBaseCost());
         response.setTotalTokensConsumed(execution.getTotalTokensConsumed());
         response.setStatus(execution.getStatus().name());
-        response.setErrorMessage(execution.getErrorMessage());
         response.setExecutedAt(execution.getExecutedAt());
         return response;
     }

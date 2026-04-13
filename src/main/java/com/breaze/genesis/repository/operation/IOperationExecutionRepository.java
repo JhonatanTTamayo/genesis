@@ -33,13 +33,14 @@ public interface IOperationExecutionRepository extends JpaRepository<OperationEx
     );
 
     @Query("""
-            SELECT e.operationCode AS operationCode,
-                   e.operationName AS operationName,
+             SELECT oc.code AS operationCode,
+                     oc.name AS operationName,
                    COUNT(e.id) AS executions
             FROM OperationExecution e
+             JOIN e.operation oc
             WHERE e.status = :status
-            GROUP BY e.operationCode, e.operationName
-            ORDER BY COUNT(e.id) DESC, e.operationCode ASC
+             GROUP BY oc.code, oc.name
+             ORDER BY COUNT(e.id) DESC, oc.code ASC
             """)
     List<TopOperationMetricProjection> findTopOperationMetrics(@Param("status") OperationExecutionStatus status);
 

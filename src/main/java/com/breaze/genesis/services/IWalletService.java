@@ -2,10 +2,8 @@ package com.breaze.genesis.services;
 
 import com.breaze.genesis.dto.wallet.requests.TokenRechargeRequest;
 import com.breaze.genesis.dto.wallet.requests.WalletBalanceRequest;
-import com.breaze.genesis.dto.wallet.requests.WalletTransactionHistoryRequest;
 import com.breaze.genesis.dto.wallet.responses.TokenRechargeResponse;
 import com.breaze.genesis.dto.wallet.responses.WalletBalanceResponse;
-import com.breaze.genesis.dto.wallet.responses.WalletTransactionHistoryResponse;
 
 /**
  * Contrato de aplicacion para consultas del wallet de usuario.
@@ -22,14 +20,6 @@ public interface IWalletService {
      * @return saldo actual y metadatos del wallet
      */
     WalletBalanceResponse getMyBalance(WalletBalanceRequest request);
-
-    /**
-     * Obtiene el historial paginado de transacciones del wallet.
-     *
-     * @param request correo autenticado y parametros de paginacion
-     * @return transacciones paginadas
-     */
-    WalletTransactionHistoryResponse getMyTransactions(WalletTransactionHistoryRequest request);
 
     /**
      * Recarga una cantidad especifica de tokens al usuario (solo Admin).

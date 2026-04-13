@@ -11,8 +11,8 @@ import com.breaze.genesis.entity.plan.Plan;
 import com.breaze.genesis.entity.plan.PlanVersion;
 import com.breaze.genesis.entity.subscriptions.Subscription;
 import com.breaze.genesis.entity.subscriptions.SubscriptionStatus;
+import com.breaze.genesis.entity.tokens.TokenTransactionReferenceType;
 import com.breaze.genesis.entity.tokens.TokenTransaction;
-import com.breaze.genesis.entity.tokens.TokenTransactionType;
 import com.breaze.genesis.entity.tokens.TokenWallet;
 import com.breaze.genesis.entity.User;
 import com.breaze.genesis.exceptions.BusinessException;
@@ -46,6 +46,7 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
     private static final int DEFAULT_SIZE = 10;
     private static final int MAX_SIZE = 50;
     private static final int DEFAULT_SUBSCRIPTION_PERIOD_DAYS = 30;
+    private static final String MULTIPLE_ACTIVE_SUBSCRIPTIONS_ERROR = "Inconsistency detected: the user has more than one active subscription";
 
     private final IUserRepository userRepository;
     private final IPlanRepository planRepository;
@@ -79,9 +80,9 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
     @Override
     @Transactional
     public CreateSubscriptionResponse createSubscription(String authenticatedEmail, SubscriptionCreateRequest request) {
-        User user = findAuthenticatedUser(authenticatedEmail);
+        User user = findAuthenticatedUserForUpdate(authenticatedEmail);
         LocalDateTime now = LocalDateTime.now();
-        Optional<Subscription> optionalActiveSubscription = evaluateLazyRenewal(user, now);
+        Optional<Subscription> optionalActiveSubscription = evaluateLazyRenewalForUpdate(user, now);
         PlanVersion targetPlanVersion = resolveRequestedPlanVersion(request.getPlanId(), now);
 
         if (optionalActiveSubscription.isPresent()) {
@@ -104,7 +105,7 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         int newBalance = applyWalletMovement(
                 user,
                 targetPlanVersion.getTokenLimit(),
-                TokenTransactionType.SUBSCRIPTION,
+            TokenTransactionReferenceType.SUBSCRIPTION,
                 newSubscription
         );
 
@@ -121,7 +122,7 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         LocalDateTime now = LocalDateTime.now();
 
         Subscription activeSubscription = evaluateLazyRenewal(user, now)
-                .orElseThrow(() -> new ResourceNotFoundException("No se encontró una suscripción activa para el usuario autenticado"));
+            .orElseThrow(() -> new ResourceNotFoundException("No active subscription found for the authenticated user"));
 
         return mapMyActiveSubscription(activeSubscription);
     }
@@ -130,14 +131,33 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
      * Evalua expiracion/renovacion de forma lazy en tiempo de request.
      */
     private Optional<Subscription> evaluateLazyRenewal(User user, LocalDateTime now) {
-        Optional<Subscription> optionalActiveSubscription = subscriptionRepository.findByUserAndStatus(user, SubscriptionStatus.ACTIVE);
-        if (optionalActiveSubscription.isEmpty()) {
+        List<Subscription> activeSubscriptions = subscriptionRepository
+                .findAllByUserAndStatusOrderByStartDateDesc(user, SubscriptionStatus.ACTIVE);
+        return evaluateLazyRenewal(user.getId(), now, activeSubscriptions);
+    }
+
+    /**
+     * Evalua expiracion/renovacion con bloqueo pesimista para garantizar unicidad de suscripcion activa.
+     */
+    private Optional<Subscription> evaluateLazyRenewalForUpdate(User user, LocalDateTime now) {
+        List<Subscription> activeSubscriptions = subscriptionRepository
+                .findAllByUserAndStatusForUpdate(user, SubscriptionStatus.ACTIVE);
+        return evaluateLazyRenewal(user.getId(), now, activeSubscriptions);
+    }
+
+    private Optional<Subscription> evaluateLazyRenewal(
+            Long userId,
+            LocalDateTime now,
+            List<Subscription> activeSubscriptions
+    ) {
+        enforceSingleActiveSubscription(userId, activeSubscriptions);
+        if (activeSubscriptions.isEmpty()) {
             return Optional.empty();
         }
 
-        Subscription activeSubscription = optionalActiveSubscription.get();
+        Subscription activeSubscription = activeSubscriptions.get(0);
         if (activeSubscription.getEndDate() == null || activeSubscription.getEndDate().isAfter(now)) {
-            return optionalActiveSubscription;
+            return Optional.of(activeSubscription);
         }
 
         expireSubscription(activeSubscription, now);
@@ -146,14 +166,20 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         return Optional.empty();
     }
 
+    private void enforceSingleActiveSubscription(Long userId, List<Subscription> activeSubscriptions) {
+        if (activeSubscriptions.size() > 1) {
+            throw new BusinessException(MULTIPLE_ACTIVE_SUBSCRIPTIONS_ERROR + " (userId=" + userId + ")");
+        }
+    }
+
     /**
      * Resuelve la version vigente del plan solicitado.
      */
     private PlanVersion resolveRequestedPlanVersion(Long planId, LocalDateTime at) {
         Plan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Plan no encontrado"));
+            .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
         return findEffectivePlanVersion(plan.getId(), at)
-                .orElseThrow(() -> new BusinessException("El plan seleccionado no tiene una versión vigente y está temporalmente deshabilitado"));
+            .orElseThrow(() -> new BusinessException("The selected plan has no active version and is temporarily unavailable"));
     }
 
     private Optional<PlanVersion> findEffectivePlanVersion(Long planId, LocalDateTime at) {
@@ -180,14 +206,14 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
     private int applyWalletMovement(
             User user,
             Integer amount,
-            TokenTransactionType type,
+            TokenTransactionReferenceType referenceType,
             Subscription activeSubscription
     ) {
         TokenWallet wallet = getOrCreateWallet(user);
-        int normalizedAmount = normalizeAmountByType(amount, type);
+        int normalizedAmount = normalizeAmountByReference(amount, referenceType);
         int newBalance = wallet.getTokensAvailable() + normalizedAmount;
         if (newBalance < 0) {
-            throw new BusinessException("Saldo insuficiente para completar la operación");
+            throw new BusinessException("Insufficient balance to complete the operation");
         }
 
         wallet.setTokensAvailable(newBalance);
@@ -197,11 +223,9 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         TokenTransaction transaction = new TokenTransaction();
         transaction.setUser(user);
         transaction.setAmount(Math.abs(amount));
-        transaction.setType(type);
-        String subDesc = "Subscription: " + (activeSubscription != null ? activeSubscription.getPlanVersion().getPlan().getName() : "Unknown Plan");
-        transaction.setDescription(type == TokenTransactionType.SUBSCRIPTION ? subDesc : "Consumption");
         transaction.setExpiresAt(activeSubscription != null ? activeSubscription.getEndDate() : null);
-        transaction.setSubscription(activeSubscription);
+        transaction.setReferenceType(referenceType);
+        transaction.setReferenceId(activeSubscription != null ? activeSubscription.getId() : null);
         tokenTransactionRepository.save(transaction);
 
         return newBalance;
@@ -239,7 +263,13 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
 
     private User findAuthenticatedUser(String authenticatedEmail) {
         return userRepository.findByEmail(authenticatedEmail)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario autenticado no encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("Authenticated user not found"));
+    }
+
+    private User findAuthenticatedUserForUpdate(String authenticatedEmail) {
+        User user = findAuthenticatedUser(authenticatedEmail);
+        return userRepository.findByIdForUpdate(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Authenticated user not found"));
     }
 
     private PageRequest buildPageRequest(SubscriptionHistoryQueryRequest request) {
@@ -259,7 +289,7 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         int requestedPlanTokens = requestedPlanVersion.getTokenLimit();
         if (requestedPlanTokens < currentPlanTokens) {
             throw new BusinessException(
-                    "No se permite cambiar a un plan de menor nivel mientras exista una suscripción activa"
+                    "Downgrading to a lower-tier plan is not allowed while an active subscription exists"
             );
         }
     }
@@ -296,15 +326,15 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
     }
 
     /**
-     * Normaliza el signo del monto segun el tipo de movimiento.
+     * Normaliza el signo del monto segun el tipo de referencia.
      *
      * @param amount monto base
-     * @param type tipo de movimiento
+     * @param referenceType tipo de referencia
      * @return monto normalizado
      */
-    private int normalizeAmountByType(Integer amount, TokenTransactionType type) {
+    private int normalizeAmountByReference(Integer amount, TokenTransactionReferenceType referenceType) {
         int absoluteAmount = Math.abs(amount);
-        if (type == TokenTransactionType.CONSUMPTION) {
+        if (referenceType.isTokenSubtractionMovement()) {
             return -absoluteAmount;
         }
         return absoluteAmount;

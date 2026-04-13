@@ -38,7 +38,10 @@ public class SecurityConfig {
                         // Public — registration and login
                         .requestMatchers("/auth/**", "/api/v1/auth/**").permitAll()
                         // Authorization at filter-chain level to avoid body parsing before role checks.
+                        .requestMatchers(HttpMethod.GET, "/api/v1/users").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.PUT, "/api/v1/plans/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/plans").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET, "/api/v1/plans").hasAnyRole("USER", "ADMIN")
                         .requestMatchers(HttpMethod.DELETE, "/api/v1/plans/**").hasRole("ADMIN")
                         .requestMatchers(HttpMethod.POST, "/api/v1/wallet/recharge").hasRole("ADMIN")
                         .requestMatchers("/api/v1/health").permitAll()

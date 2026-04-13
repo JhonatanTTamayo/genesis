@@ -5,16 +5,12 @@ import java.time.LocalDateTime;
 public class TransactionResponse {
 
     private Long id;
+    private Long operationId;
     private String operationCode;
     private String operationName;
-    private String inputJson;
-    private String outputJson;
-    private Integer inputTokens;
-    private Integer outputTokens;
     private Integer baseCost;
     private Integer totalTokensConsumed;
     private String status;
-    private String errorMessage;
     private LocalDateTime executedAt;
 
     public Long getId() {
@@ -23,6 +19,14 @@ public class TransactionResponse {
 
     public void setId(Long id) {
         this.id = id;
+    }
+
+    public Long getOperationId() {
+        return operationId;
+    }
+
+    public void setOperationId(Long operationId) {
+        this.operationId = operationId;
     }
 
     public String getOperationCode() {
@@ -39,38 +43,6 @@ public class TransactionResponse {
 
     public void setOperationName(String operationName) {
         this.operationName = operationName;
-    }
-
-    public String getInputJson() {
-        return inputJson;
-    }
-
-    public void setInputJson(String inputJson) {
-        this.inputJson = inputJson;
-    }
-
-    public String getOutputJson() {
-        return outputJson;
-    }
-
-    public void setOutputJson(String outputJson) {
-        this.outputJson = outputJson;
-    }
-
-    public Integer getInputTokens() {
-        return inputTokens;
-    }
-
-    public void setInputTokens(Integer inputTokens) {
-        this.inputTokens = inputTokens;
-    }
-
-    public Integer getOutputTokens() {
-        return outputTokens;
-    }
-
-    public void setOutputTokens(Integer outputTokens) {
-        this.outputTokens = outputTokens;
     }
 
     public Integer getBaseCost() {
@@ -95,14 +67,6 @@ public class TransactionResponse {
 
     public void setStatus(String status) {
         this.status = status;
-    }
-
-    public String getErrorMessage() {
-        return errorMessage;
-    }
-
-    public void setErrorMessage(String errorMessage) {
-        this.errorMessage = errorMessage;
     }
 
     public LocalDateTime getExecutedAt() {

@@ -2,10 +2,8 @@ package com.breaze.genesis.controller;
 
 import com.breaze.genesis.dto.wallet.requests.TokenRechargeRequest;
 import com.breaze.genesis.dto.wallet.requests.WalletBalanceRequest;
-import com.breaze.genesis.dto.wallet.requests.WalletTransactionHistoryRequest;
 import com.breaze.genesis.dto.wallet.responses.TokenRechargeResponse;
 import com.breaze.genesis.dto.wallet.responses.WalletBalanceResponse;
-import com.breaze.genesis.dto.wallet.responses.WalletTransactionHistoryResponse;
 import com.breaze.genesis.services.IWalletService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -14,7 +12,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -46,28 +43,6 @@ public class WalletController {
                 .authenticatedEmail(getAuthenticatedEmail(authentication))
                 .build();
         return ResponseEntity.ok(walletService.getMyBalance(request));
-    }
-
-    /**
-     * Consulta el historial de transacciones del wallet del usuario autenticado.
-     *
-     * @param query parametros de paginacion
-     * @param authentication contexto de autenticacion actual
-     * @return historial paginado de transacciones
-     */
-    @GetMapping("/transactions")
-    @PreAuthorize("hasAnyRole('USER','ADMIN')")
-    public ResponseEntity<WalletTransactionHistoryResponse> getMyWalletTransactions(
-            @Valid @ModelAttribute WalletTransactionHistoryRequest query,
-            Authentication authentication
-    ) {
-        WalletTransactionHistoryRequest request = WalletTransactionHistoryRequest.builder()
-                .authenticatedEmail(getAuthenticatedEmail(authentication))
-                .page(query.getPage())
-                .size(query.getSize())
-                .build();
-
-        return ResponseEntity.ok(walletService.getMyTransactions(request));
     }
 
     /**

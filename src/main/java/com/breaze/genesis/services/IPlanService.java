@@ -1,5 +1,7 @@
 package com.breaze.genesis.services;
 
+import com.breaze.genesis.dto.plan.requests.CreatePlanRequest;
+import com.breaze.genesis.dto.plan.responses.CreatePlanResponse;
 import com.breaze.genesis.dto.plan.requests.ListPlansRequest;
 import com.breaze.genesis.dto.plan.requests.DeletePlanRequest;
 import com.breaze.genesis.dto.plan.requests.UpdatePlanRequest;
@@ -16,6 +18,8 @@ import com.breaze.genesis.dto.plan.responses.UpdatePlanStatusResponse;
  * @author donpedromz
  */
 public interface IPlanService {
+
+    CreatePlanResponse createPlan(CreatePlanRequest request);
 
     /**
      * Obtiene el listado paginado de planes.

@@ -21,14 +21,14 @@ import com.breaze.genesis.dto.operations.responses.OperationCatalogResponse;
 import com.breaze.genesis.dto.operations.responses.SleepResponse;
 import com.breaze.genesis.dto.operations.responses.SleepResponse.SleepOption;
 import com.breaze.genesis.entity.ExchangeRate;
-import com.breaze.genesis.entity.OperationCatalog;
+import com.breaze.genesis.entity.Operation;
 import com.breaze.genesis.entity.User;
 import com.breaze.genesis.entity.tokens.TokenTransaction;
 import com.breaze.genesis.exceptions.BusinessException;
 import com.breaze.genesis.repository.ExchangeRateRepository;
 import com.breaze.genesis.repository.IOperationRepository;
 import com.breaze.genesis.services.IOperationService;
-import com.breaze.genesis.services.ITransactionService;
+import com.breaze.genesis.services.IOperationTransactionService;
 import lombok.RequiredArgsConstructor;
 import org.jspecify.annotations.NonNull;
 import org.springframework.stereotype.Service;
@@ -47,7 +47,7 @@ public class OperationServiceImpl implements IOperationService {
     private final TokenConsumptionStrategy tokenConsumptionStrategy;
     private final ExchangeRateRepository exchangeRateRepository;
     private final IOperationRepository operationCatalogRepository;
-    private final ITransactionService transactionService;
+    private final IOperationTransactionService transactionService;
 
     private static final double MIN_WEIGHT_KG = 2.0;
     private static final double MAX_WEIGHT_KG = 500.0;
@@ -64,8 +64,8 @@ public class OperationServiceImpl implements IOperationService {
     private static final int MIN_MINUTES_TO_FALL_ASLEEP = 1;
     private static final int MAX_MINUTES_TO_FALL_ASLEEP = 120;
 
-    private OperationCatalog getOperationCatalogAndValidate(String operationCode) {
-        OperationCatalog catalog = operationCatalogRepository.findByCode(operationCode)
+    private Operation getOperationCatalogAndValidate(String operationCode) {
+        Operation catalog = operationCatalogRepository.findByCode(operationCode)
                 .orElseThrow(() -> new BusinessException("Operation " + operationCode + " not found in catalog."));
 
         if (!Boolean.TRUE.equals(catalog.getActive())) {
@@ -92,7 +92,7 @@ public class OperationServiceImpl implements IOperationService {
     @Override
     @Transactional
     public OperationCatalogResponse updateOperationStatus(Long id, UpdateOperationStatusRequest request) {
-        OperationCatalog catalog = operationCatalogRepository.findById(id)
+        Operation catalog = operationCatalogRepository.findById(id)
                 .orElseThrow(() -> new BusinessException("Operation " + id + " not found in catalog."));
         
         catalog.setActive(request.getActive());
@@ -111,14 +111,11 @@ public class OperationServiceImpl implements IOperationService {
     @Override
     @Transactional
     public CreditExecutionResponse calculateCredit(CreditExecutionRequest request, User user) {
-        OperationCatalog catalog = getOperationCatalogAndValidate("OP-01");
-        String requestJson = toJson(request);
-
+        Operation catalog = getOperationCatalogAndValidate("OP-01");
         try {
             Double price = request.getAmount();
             Double monthlyInterestRate = request.getMonthlyRate() / 100.0;
             int installments = getMeses(request);
-
             Double monthlyQuote = calculateMonthlyQuote(price, monthlyInterestRate, installments);
             Double totalPaid = monthlyQuote * installments;
             Double totalInterest = totalPaid - price;
@@ -150,26 +147,20 @@ public class OperationServiceImpl implements IOperationService {
                     .build();
 
             int cost = operationEstimator.estimateCost(catalog.getBaseCost(), request, response);
-            TokenTransaction tokenTransaction = tokenConsumptionStrategy.consumeTokens(user, cost, "OP-01 Credit Installments");
+            TokenTransaction tokenTransaction = tokenConsumptionStrategy.consumeTokens(user, cost);
             transactionService.logSuccessfulOperation(
                     user,
-                    catalog.getCode(),
-                    catalog.getName(),
-                    requestJson,
-                    toJson(response),
+                    catalog,
                     catalog.getBaseCost(),
                     cost,
                     tokenTransaction
             );
             return response;
-        } catch (RuntimeException ex) {
+                } catch (BusinessException ex) {
             transactionService.logFailedOperation(
                     user,
-                    catalog.getCode(),
-                    catalog.getName(),
-                    requestJson,
-                    catalog.getBaseCost(),
-                    ex.getMessage()
+                    catalog,
+                    catalog.getBaseCost()
             );
             throw ex;
         }
@@ -198,8 +189,7 @@ public class OperationServiceImpl implements IOperationService {
     @Override
     @Transactional
     public CurrencyConverterResponse convertCurrency(CurrencyConverterRequest request, User user) {
-        OperationCatalog catalog = getOperationCatalogAndValidate("OP-02");
-        String requestJson = toJson(request);
+        Operation catalog = getOperationCatalogAndValidate("OP-02");
 
         try {
             ExchangeRate trmOpt = exchangeRateRepository.findTopByOrderByUpdatedAtDesc()
@@ -212,13 +202,7 @@ public class OperationServiceImpl implements IOperationService {
                 throw new BusinessException("The conversion amount must be greater than or equal to " + MIN_CONVERT_AMOUNT + ".");
             }
 
-            String monedaOrigenStr = request.getSourceCurrency();
-            Currency monedaOrigen;
-            try {
-                monedaOrigen = Currency.valueOf(monedaOrigenStr.toUpperCase());
-            } catch (IllegalArgumentException | NullPointerException e) {
-                throw new BusinessException("Invalid sourceCurrency. Allowed values are: " + java.util.Arrays.toString(Currency.values()));
-            }
+            Currency monedaOrigen = resolveSourceCurrency(request.getSourceCurrency());
 
             Double montoConvertido;
             ConversionDirection conversionDirection;
@@ -241,26 +225,20 @@ public class OperationServiceImpl implements IOperationService {
                     .build();
 
             int cost = operationEstimator.estimateCost(catalog.getBaseCost(), request, response);
-            TokenTransaction tokenTransaction = tokenConsumptionStrategy.consumeTokens(user, cost, "OP-02 Currency Converter");
+            TokenTransaction tokenTransaction = tokenConsumptionStrategy.consumeTokens(user, cost);
             transactionService.logSuccessfulOperation(
                     user,
-                    catalog.getCode(),
-                    catalog.getName(),
-                    requestJson,
-                    toJson(response),
+                    catalog,
                     catalog.getBaseCost(),
                     cost,
                     tokenTransaction
             );
             return response;
-        } catch (RuntimeException ex) {
+                } catch (BusinessException ex) {
             transactionService.logFailedOperation(
                     user,
-                    catalog.getCode(),
-                    catalog.getName(),
-                    requestJson,
-                    catalog.getBaseCost(),
-                    ex.getMessage()
+                    catalog,
+                    catalog.getBaseCost()
             );
             throw ex;
         }
@@ -269,8 +247,7 @@ public class OperationServiceImpl implements IOperationService {
     @Override
     @Transactional
     public BMIResponse calculateBMI(BMIRequest request, User user) {
-        OperationCatalog catalog = getOperationCatalogAndValidate("OP-03");
-        String requestJson = toJson(request);
+        Operation catalog = getOperationCatalogAndValidate("OP-03");
 
         try {
             if (request.getWeightKg() < MIN_WEIGHT_KG || request.getWeightKg() > MAX_WEIGHT_KG) {
@@ -314,26 +291,20 @@ public class OperationServiceImpl implements IOperationService {
                     .build();
 
             int cost = operationEstimator.estimateCost(catalog.getBaseCost(), request, response);
-            TokenTransaction tokenTransaction = tokenConsumptionStrategy.consumeTokens(user, cost, "OP-03 BMI Calculator");
+            TokenTransaction tokenTransaction = tokenConsumptionStrategy.consumeTokens(user, cost);
             transactionService.logSuccessfulOperation(
                     user,
-                    catalog.getCode(),
-                    catalog.getName(),
-                    requestJson,
-                    toJson(response),
+                    catalog,
                     catalog.getBaseCost(),
                     cost,
                     tokenTransaction
             );
             return response;
-        } catch (RuntimeException ex) {
+                } catch (BusinessException ex) {
             transactionService.logFailedOperation(
                     user,
-                    catalog.getCode(),
-                    catalog.getName(),
-                    requestJson,
-                    catalog.getBaseCost(),
-                    ex.getMessage()
+                    catalog,
+                    catalog.getBaseCost()
             );
             throw ex;
         }
@@ -342,8 +313,7 @@ public class OperationServiceImpl implements IOperationService {
     @Override
     @Transactional
     public SleepResponse calculateSleep(SleepRequest request, User user) {
-        OperationCatalog catalog = getOperationCatalogAndValidate("OP-04");
-        String requestJson = toJson(request);
+        Operation catalog = getOperationCatalogAndValidate("OP-04");
 
         try {
             LocalTime horaBase = request.getTime();
@@ -353,13 +323,7 @@ public class OperationServiceImpl implements IOperationService {
                 throw new BusinessException("The minutes entered to fall asleep must be between " + MIN_MINUTES_TO_FALL_ASLEEP + " and " + MAX_MINUTES_TO_FALL_ASLEEP + " minutes.");
             }
 
-            String modeStr = request.getMode();
-            SleepCalculatorMode mode;
-            try {
-                mode = SleepCalculatorMode.valueOf(modeStr.toUpperCase());
-            } catch (IllegalArgumentException | NullPointerException e) {
-                throw new BusinessException("Invalid mode. Allowed values are: " + java.util.Arrays.toString(SleepCalculatorMode.values()));
-            }
+            SleepCalculatorMode mode = resolveSleepMode(request.getMode());
 
             SleepOption recomendado;
             SleepOption aceptable;
@@ -391,26 +355,20 @@ public class OperationServiceImpl implements IOperationService {
                     .build();
 
             int cost = operationEstimator.estimateCost(catalog.getBaseCost(), request, response);
-            TokenTransaction tokenTransaction = tokenConsumptionStrategy.consumeTokens(user, cost, "OP-04 Sleep Calculator");
+            TokenTransaction tokenTransaction = tokenConsumptionStrategy.consumeTokens(user, cost);
             transactionService.logSuccessfulOperation(
                     user,
-                    catalog.getCode(),
-                    catalog.getName(),
-                    requestJson,
-                    toJson(response),
+                    catalog,
                     catalog.getBaseCost(),
                     cost,
                     tokenTransaction
             );
             return response;
-        } catch (RuntimeException ex) {
+                } catch (BusinessException ex) {
             transactionService.logFailedOperation(
                     user,
-                    catalog.getCode(),
-                    catalog.getName(),
-                    requestJson,
-                    catalog.getBaseCost(),
-                    ex.getMessage()
+                    catalog,
+                    catalog.getBaseCost()
             );
             throw ex;
         }
@@ -440,7 +398,34 @@ public class OperationServiceImpl implements IOperationService {
                 .build();
     }
 
-    private String toJson(Object value) {
-        return String.valueOf(value);
+    private Currency resolveSourceCurrency(String sourceCurrency) {
+        if (sourceCurrency == null || sourceCurrency.isBlank()) {
+            throw new BusinessException("Invalid sourceCurrency. Allowed values are: " + java.util.Arrays.toString(Currency.values()));
+        }
+
+        String normalized = sourceCurrency.trim();
+        for (Currency currency : Currency.values()) {
+            if (currency.name().equalsIgnoreCase(normalized)) {
+                return currency;
+            }
+        }
+
+        throw new BusinessException("Invalid sourceCurrency. Allowed values are: " + java.util.Arrays.toString(Currency.values()));
     }
+
+    private SleepCalculatorMode resolveSleepMode(String mode) {
+        if (mode == null || mode.isBlank()) {
+            throw new BusinessException("Invalid mode. Allowed values are: " + java.util.Arrays.toString(SleepCalculatorMode.values()));
+        }
+
+        String normalized = mode.trim();
+        for (SleepCalculatorMode sleepMode : SleepCalculatorMode.values()) {
+            if (sleepMode.name().equalsIgnoreCase(normalized)) {
+                return sleepMode;
+            }
+        }
+
+        throw new BusinessException("Invalid mode. Allowed values are: " + java.util.Arrays.toString(SleepCalculatorMode.values()));
+    }
+
 }
