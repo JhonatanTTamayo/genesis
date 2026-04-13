@@ -1,5 +1,6 @@
 package com.breaze.genesis.dto.operations.requests;
 
+import jakarta.validation.constraints.DecimalMin;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
@@ -14,7 +15,7 @@ import lombok.NoArgsConstructor;
 public class CreditExecutionRequest {
     
     @NotNull
-    @Min(1)
+    @DecimalMin("0.01")
     private Double amount;
     
     @NotNull
@@ -22,6 +23,6 @@ public class CreditExecutionRequest {
     private Integer installments;
     
     @NotNull
-    @Min(1)
+    @DecimalMin("0.01")
     private Double monthlyRate;
 }
