@@ -7,7 +7,6 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Entity
@@ -23,8 +22,8 @@ public class ExchangeRate {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "cop_per_usd", nullable = false, precision = 15, scale = 2)
-    private BigDecimal copPerUsd;
+    @Column(name = "cop_per_usd", nullable = false)
+    private Double copPerUsd;
 
     @Column(name = "updated_at", nullable = false)
     private LocalDateTime updatedAt;

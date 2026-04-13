@@ -1,10 +1,10 @@
 package com.breaze.genesis.controller;
 
-import com.breaze.genesis.dto.request.LoginRequest;
-import com.breaze.genesis.dto.request.RegisterRequest;
-import com.breaze.genesis.dto.response.LoginResponse;
-import com.breaze.genesis.dto.response.RegisterResponse;
-import com.breaze.genesis.service.AuthService;
+import com.breaze.genesis.dto.auth.requests.LoginRequest;
+import com.breaze.genesis.dto.auth.requests.RegisterRequest;
+import com.breaze.genesis.dto.auth.responses.LoginResponse;
+import com.breaze.genesis.dto.auth.responses.RegisterResponse;
+import com.breaze.genesis.services.IAuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,7 +16,7 @@ import org.springframework.web.bind.annotation.*;
 @RequiredArgsConstructor
 public class AuthController {
 
-    private final AuthService authService;
+    private final IAuthService authService;
 
     @PostMapping("/register")
     public ResponseEntity<RegisterResponse> register(@Valid @RequestBody RegisterRequest request) {
