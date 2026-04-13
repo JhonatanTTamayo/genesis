@@ -26,7 +26,7 @@ public class FifoTokenConsumptionStrategy implements TokenConsumptionStrategy {
 
     @Override
     @Transactional
-    public void consumeTokens(User user, int amount, String description) {
+    public TokenTransaction consumeTokens(User user, int amount, String description) {
         if (amount <= 0) {
             throw new IllegalArgumentException("Amount to consume must be greater than 0");
         }
@@ -78,5 +78,6 @@ public class FifoTokenConsumptionStrategy implements TokenConsumptionStrategy {
         wallet.setUpdatedAt(LocalDateTime.now());
         tokenWalletRepository.save(wallet);
         log.info("Consumidos {} tokens para el usuario {}. Nuevo balance: {}", amount, user.getId(), updatedBalance);
+        return consumptionTx;
     }
 }

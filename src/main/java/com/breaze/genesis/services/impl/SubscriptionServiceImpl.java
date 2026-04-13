@@ -201,6 +201,7 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         String subDesc = "Subscription: " + (activeSubscription != null ? activeSubscription.getPlanVersion().getPlan().getName() : "Unknown Plan");
         transaction.setDescription(type == TokenTransactionType.SUBSCRIPTION ? subDesc : "Consumption");
         transaction.setExpiresAt(activeSubscription != null ? activeSubscription.getEndDate() : null);
+        transaction.setSubscription(activeSubscription);
         tokenTransactionRepository.save(transaction);
 
         return newBalance;

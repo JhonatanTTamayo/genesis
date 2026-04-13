@@ -1,6 +1,8 @@
 package com.breaze.genesis.entity.tokens;
 
 import com.breaze.genesis.entity.User;
+import com.breaze.genesis.entity.subscriptions.Subscription;
+import com.breaze.genesis.entity.transactions.OperationExecution;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -37,6 +39,14 @@ public class TokenTransaction {
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "operation_execution_id")
+    private OperationExecution operationExecution;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "subscription_id")
+    private Subscription subscription;
 
     @Column(nullable = false, length = 255)
     private String description;
