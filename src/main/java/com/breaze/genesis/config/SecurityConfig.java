@@ -40,6 +40,7 @@ public class SecurityConfig {
                     // Authorization at filter-chain level to avoid body parsing before role checks.
                     .requestMatchers(HttpMethod.PUT, "/api/v1/plans/**").hasRole("ADMIN")
                     .requestMatchers(HttpMethod.DELETE, "/api/v1/plans/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/v1/wallet/recharge").hasRole("ADMIN")
                         // Endpoints without @PreAuthorize are publicly accessible
                         .anyRequest().permitAll()
                 )

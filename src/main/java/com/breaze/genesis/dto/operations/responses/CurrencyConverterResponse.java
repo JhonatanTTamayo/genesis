@@ -1,5 +1,6 @@
 package com.breaze.genesis.dto.operations.responses;
 
+import com.breaze.genesis.dto.operations.dto.ConversionDirection;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -12,8 +13,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CurrencyConverterResponse {
-    private String amountConverted;
-    private String conversionDirection;
-    private Integer taxApplied;
-    private LocalDateTime taxUpdateDate;
+    private Double convertedAmount;
+    private ConversionDirection conversionDirection;
+    private Double appliedRate;
+    private LocalDateTime rateLastUpdatedAt;
 }

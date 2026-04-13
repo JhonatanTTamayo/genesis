@@ -1,7 +1,6 @@
 package com.breaze.genesis.entity.subscriptions;
 
 import com.breaze.genesis.entity.User;
-import com.breaze.genesis.entity.plan.Plan;
 import com.breaze.genesis.entity.plan.PlanVersion;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -43,13 +42,6 @@ public class Subscription {
     @Column(nullable = false, length = 20)
     private SubscriptionStatus status;
 
-    @Column(name = "auto_renew", nullable = false)
-    private Boolean autoRenew;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "pending_plan_id")
-    private Plan pendingPlan;
-
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
@@ -60,9 +52,6 @@ public class Subscription {
         }
         if (this.status == null) {
             this.status = SubscriptionStatus.ACTIVE;
-        }
-        if (this.autoRenew == null) {
-            this.autoRenew = true;
         }
         if (this.createdAt == null) {
             this.createdAt = LocalDateTime.now();

@@ -13,8 +13,8 @@ import java.time.LocalDateTime;
 @NoArgsConstructor
 @Builder
 public class CreateSubscriptionResponse {
-    private Long userId;
     private SubscriptionPlanDTO plan;
     private Integer newTokenBalance;
     private LocalDateTime startDate;
+    private LocalDateTime endDate;
 }

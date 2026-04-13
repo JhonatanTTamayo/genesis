@@ -1,6 +1,7 @@
 package com.breaze.genesis.dto.operations.requests;
-
-import com.breaze.genesis.dto.operations.dto.SleepCalculatorMode;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -13,7 +14,14 @@ import java.time.LocalTime;
 @NoArgsConstructor
 @AllArgsConstructor
 public class SleepRequest {
-    private SleepCalculatorMode mode;
+    
+    @NotBlank
+    private String mode;
+
+    @NotNull
     private LocalTime time;
-    private Integer sleepDuration;
+
+    @NotNull
+    @Min(1)
+    private Integer sleepDurationMinutes;
 }

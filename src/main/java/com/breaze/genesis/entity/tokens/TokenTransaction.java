@@ -38,41 +38,72 @@ public class TokenTransaction {
     @JoinColumn(name = "user_id", nullable = false)
     private User user;
 
+    @Column(nullable = false, length = 255)
+    private String description;
+
     @Column(nullable = false)
     private Integer amount;
+
+    @Column(name = "remaining_amount")
+    private Integer remainingAmount;
+
+    @Column(name = "expires_at")
+    private LocalDateTime expiresAt;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private TokenTransactionType type;
-
-    @Column(name = "reference_id")
-    private Long referenceId;
-
-    @Column(name = "idempotency_key", unique = true, length = 120)
-    private String idempotencyKey;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 
     @PrePersist
     public void prePersist() {
+        validateTransaction();
+        normalizeAmountByOperationSemantics();
+        initializeRemainingAmount();
+
+        if (this.createdAt == null) {
+            this.createdAt = LocalDateTime.now();
+        }
+    }
+
+    /**
+     * Valida que el monto y el tipo de transaccion sean correctos.
+     */
+    private void validateTransaction() {
         if (this.amount == null || this.amount == 0) {
             throw new IllegalStateException("Transaction amount must be different from 0");
         }
         if (this.type == null) {
             throw new IllegalStateException("Transaction type is required");
         }
+    }
 
-        // Keep ledger consistent with operation semantics.
-        if (this.type == TokenTransactionType.ADD && this.amount < 0) {
+    /**
+     * Normaliza el monto (positivo o negativo) segun el tipo de transaccion.
+     */
+    private void normalizeAmountByOperationSemantics() {
+        // ADD (top-up manual admin) y SUBSCRIPTION aportan (+)
+        if ((this.type == TokenTransactionType.ADD || this.type == TokenTransactionType.SUBSCRIPTION) && this.amount < 0) {
             this.amount = Math.abs(this.amount);
         }
-        if (this.type == TokenTransactionType.SUBSTRACT && this.amount > 0) {
+        // CONSUMPTION sustrae (-)
+        if ((this.type == TokenTransactionType.CONSUMPTION) && this.amount > 0) {
             this.amount = -this.amount;
         }
+    }
 
-        if (this.createdAt == null) {
-            this.createdAt = LocalDateTime.now();
+    /**
+     * Inicializa el saldo restante solo para saldos positivos.
+     */
+    private void initializeRemainingAmount() {
+        if (this.amount > 0) {
+            if (this.remainingAmount == null) {
+                this.remainingAmount = this.amount;
+            }
+        } else {
+            this.remainingAmount = null;
         }
     }
 }

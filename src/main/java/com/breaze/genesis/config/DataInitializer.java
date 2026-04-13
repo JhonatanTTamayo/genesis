@@ -15,8 +15,6 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
-
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @Component
@@ -79,6 +77,7 @@ public class DataInitializer implements CommandLineRunner {
                     OperationCatalog.builder()
                             .code("OP-01")
                             .name("¿Cuánto me cuesta ese crédito?")
+                            .description("Calcula la tabla de amortización y las cuotas mensuales para un crédito simulado.")
                             .baseCost(50)
                             .active(true)
                             .build()
@@ -90,6 +89,7 @@ public class DataInitializer implements CommandLineRunner {
                     OperationCatalog.builder()
                             .code("OP-02")
                             .name("Conversor COP ↔ USD")
+                            .description("Convierte dinero entre Dólares y Pesos Colombianos usando la TRM actual.")
                             .baseCost(20)
                             .active(true)
                             .build()
@@ -101,6 +101,7 @@ public class DataInitializer implements CommandLineRunner {
                     OperationCatalog.builder()
                             .code("OP-03")
                             .name("Calculadora de IMC")
+                            .description("Calcula el Índice de Masa Corporal (IMC) y clasifica tu estado de peso.")
                             .baseCost(15)
                             .active(true)
                             .build()
@@ -112,6 +113,7 @@ public class DataInitializer implements CommandLineRunner {
                     OperationCatalog.builder()
                             .code("OP-04")
                             .name("Calculadora de sueño")
+                            .description("Determina los ciclos de sueño sugeridos con base en tu hora de descanso o despertar.")
                             .baseCost(20)
                             .active(true)
                             .build()
@@ -146,7 +148,8 @@ public class DataInitializer implements CommandLineRunner {
         if (exchangeRateRepository.count() == 0) {
             exchangeRateRepository.save(
                     ExchangeRate.builder()
-                            .copPerUsd(new BigDecimal("4000.00"))
+                            .copPerUsd(4000.00D)
+                            .updatedAt(LocalDateTime.now())
                             .build()
             );
         }

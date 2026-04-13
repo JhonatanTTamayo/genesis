@@ -6,7 +6,7 @@ import lombok.Getter;
 @Getter
 @AllArgsConstructor
 public enum SleepCalculatorMode {
-    WAKING_UP("WAKING_UP"),
-    GOING_TO_SLEEP("GOING_TO_SLEEP");
+    WAKE_UP_TIME("WAKE_UP_TIME"),
+    BEDTIME("BEDTIME");
     private final String value;
 }

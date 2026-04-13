@@ -5,6 +5,10 @@ import com.breaze.genesis.dto.auth.responses.UserProfileResponse;
 import com.breaze.genesis.entity.subscriptions.Subscription;
 import com.breaze.genesis.entity.subscriptions.SubscriptionStatus;
 import com.breaze.genesis.entity.User;
+import com.breaze.genesis.dto.users.requests.UpdateUserStatusRequest;
+import com.breaze.genesis.dto.users.responses.UserStatusResponse;
+import com.breaze.genesis.entity.Role;
+import com.breaze.genesis.exceptions.ForbiddenException;
 import com.breaze.genesis.exceptions.ResourceNotFoundException;
 import com.breaze.genesis.repository.subscription.ISubscriptionRepository;
 import com.breaze.genesis.repository.token.ITokenWalletRepository;
@@ -25,7 +29,7 @@ public class UserServiceImpl implements IUserService{
     @Override
     public UserProfileResponse getMyProfile(String email) {
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("Usuario no encontrado"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
                 Integer tokenBalance = tokenWalletRepository.findByUserId(user.getId())
                                 .map(wallet -> wallet.getTokensAvailable())
@@ -51,6 +55,26 @@ public class UserServiceImpl implements IUserService{
                                 .id(subscription.getPlanVersion().getPlan().getId())
                                 .name(subscription.getPlanVersion().getPlan().getName())
                                 .tokenAmount(subscription.getPlanVersion().getTokenLimit())
+                .build();
+    }
+
+    @Override
+    public UserStatusResponse updateUserStatus(Long id, UpdateUserStatusRequest request) {
+        User userToUpdate = userRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        if (userToUpdate.getRole() == Role.ADMIN) {
+            throw new ForbiddenException("Administrators cannot be deactivated or modified via this endpoint");
+        }
+
+        userToUpdate.setActive(request.getActive());
+        userRepository.save(userToUpdate);
+
+        return UserStatusResponse.builder()
+                .userId(userToUpdate.getId())
+                .email(userToUpdate.getEmail())
+                .active(userToUpdate.getActive())
+                .resultMessage("Status updated successfully")
                 .build();
     }
 }

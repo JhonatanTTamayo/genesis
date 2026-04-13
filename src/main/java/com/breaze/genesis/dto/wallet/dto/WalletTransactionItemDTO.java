@@ -22,6 +22,7 @@ public class WalletTransactionItemDTO {
     private Long id;
     private Integer amount;
     private TokenTransactionType type;
-    private Long referenceId;
+    private String description;
+    private LocalDateTime expiresAt;
     private LocalDateTime createdAt;
 }

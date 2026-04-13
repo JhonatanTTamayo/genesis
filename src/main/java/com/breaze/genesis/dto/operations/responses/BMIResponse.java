@@ -1,5 +1,6 @@
 package com.breaze.genesis.dto.operations.responses;
 
+import com.breaze.genesis.dto.operations.dto.BMICategory;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,9 +11,9 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class BMIResponse {
-    private String imc;
-    private String category;
-    private Float minimumHealthyWeight;
-    private Float maximumHealthyWeight;
-    private String weightDifference;
+    private Double bmi;
+    private BMICategory category;
+    private Double minimumHealthyWeight;
+    private Double maximumHealthyWeight;
+    private Double weightDifferenceFromRange;
 }

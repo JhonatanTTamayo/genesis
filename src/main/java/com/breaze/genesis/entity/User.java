@@ -15,7 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@ToString(exclude = {"transactions", "tokenWallet", "tokenTransactions"})
+@ToString(exclude = {"tokenWallet", "tokenTransactions"})
 public class User {
 
     @Id
@@ -54,9 +54,6 @@ public class User {
             this.role = Role.USER;
         }
     }
-
-    @OneToMany(mappedBy = "user")
-    private List<Transaction> transactions;
 
     @OneToOne(mappedBy = "user")
     private TokenWallet tokenWallet;

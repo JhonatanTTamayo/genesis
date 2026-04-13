@@ -29,12 +29,9 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 /**
  * Servicio de suscripciones con renovacion lazy y modelo ledger + snapshot.
@@ -92,9 +89,8 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
 
             if (isSamePlan(activeSubscription, targetPlanVersion)) {
                 return buildResponse(
-                        user,
                         activeSubscription.getPlanVersion(),
-                        activeSubscription.getStartDate(),
+                        activeSubscription,
                         getOrCreateWallet(user).getTokensAvailable()
                 );
             }
@@ -104,22 +100,15 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         }
 
         Subscription newSubscription = createActiveSubscription(user, targetPlanVersion, now);
-        String idempotencyKey = buildIdempotencyKey(
-                "subscription:add",
-                user.getId().toString(),
-                newSubscription.getId().toString(),
-                targetPlanVersion.getId().toString()
-        );
 
         int newBalance = applyWalletMovement(
                 user,
                 targetPlanVersion.getTokenLimit(),
-                TokenTransactionType.ADD,
-                newSubscription.getId(),
-                idempotencyKey
+                TokenTransactionType.SUBSCRIPTION,
+                newSubscription
         );
 
-        return buildResponse(user, targetPlanVersion, newSubscription.getStartDate(), newBalance);
+        return buildResponse(targetPlanVersion, newSubscription, newBalance);
     }
 
     /**
@@ -152,38 +141,9 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         }
 
         expireSubscription(activeSubscription, now);
-
-        if (!Boolean.TRUE.equals(activeSubscription.getAutoRenew())) {
-            return Optional.empty();
-        }
-
-        Plan renewalPlan = activeSubscription.getPendingPlan() != null
-                ? activeSubscription.getPendingPlan()
-                : activeSubscription.getPlanVersion().getPlan();
-
-        Optional<PlanVersion> renewalVersion = findEffectivePlanVersion(renewalPlan.getId(), now);
-        if (renewalVersion.isEmpty()) {
-            return Optional.empty();
-        }
-
-        PlanVersion renewalPlanVersion = renewalVersion.get();
-
-        Subscription renewedSubscription = createActiveSubscription(user, renewalPlanVersion, now);
-
-        String renewalKey = buildIdempotencyKey(
-                "subscription:renewal",
-                user.getId().toString(),
-                activeSubscription.getId().toString(),
-                renewalPlanVersion.getId().toString()
-        );
-        applyWalletMovement(
-                user,
-                renewalPlanVersion.getTokenLimit(),
-                TokenTransactionType.ADD,
-                renewedSubscription.getId(),
-                renewalKey
-        );
-        return Optional.of(renewedSubscription);
+        
+        // Auto-renew has been intentionally removed; once expired, the user falls back to no active subscription.
+        return Optional.empty();
     }
 
     /**
@@ -196,19 +156,22 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
                 .orElseThrow(() -> new BusinessException("El plan seleccionado no tiene una versión vigente y está temporalmente deshabilitado"));
     }
 
-        /**
-         * Busca la version efectiva de un plan en una fecha dada.
-         *
-         * @param planId identificador del plan
-         * @param at instante de evaluacion
-         * @return version vigente opcional
-         */
     private Optional<PlanVersion> findEffectivePlanVersion(Long planId, LocalDateTime at) {
-        List<PlanVersion> versions = planVersionRepository.findEffectiveVersions(planId, at, PageRequest.of(0, 1));
+        List<PlanVersion> versions = planVersionRepository.findEffectiveVersions(
+                planId,
+                at,
+                PageRequest.of(0, 1)
+        );
         if (versions.isEmpty()) {
             return Optional.empty();
         }
-        return Optional.of(versions.get(0));
+        
+        PlanVersion version = versions.get(0);
+        if (version.getValidTo() != null && !version.getValidTo().isAfter(at)) {
+            return Optional.empty();
+        }
+
+        return Optional.of(version);
     }
 
     /**
@@ -218,16 +181,8 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
             User user,
             Integer amount,
             TokenTransactionType type,
-            Long referenceId,
-            String idempotencyKey
+            Subscription activeSubscription
     ) {
-        if (idempotencyKey != null) {
-            Optional<TokenTransaction> existing = tokenTransactionRepository.findByIdempotencyKey(idempotencyKey);
-            if (existing.isPresent()) {
-                return getOrCreateWallet(user).getTokensAvailable();
-            }
-        }
-
         TokenWallet wallet = getOrCreateWallet(user);
         int normalizedAmount = normalizeAmountByType(amount, type);
         int newBalance = wallet.getTokensAvailable() + normalizedAmount;
@@ -241,10 +196,11 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
 
         TokenTransaction transaction = new TokenTransaction();
         transaction.setUser(user);
-    transaction.setAmount(Math.abs(amount));
+        transaction.setAmount(Math.abs(amount));
         transaction.setType(type);
-        transaction.setReferenceId(referenceId);
-        transaction.setIdempotencyKey(idempotencyKey);
+        String subDesc = "Subscription: " + (activeSubscription != null ? activeSubscription.getPlanVersion().getPlan().getName() : "Unknown Plan");
+        transaction.setDescription(type == TokenTransactionType.SUBSCRIPTION ? subDesc : "Consumption");
+        transaction.setExpiresAt(activeSubscription != null ? activeSubscription.getEndDate() : null);
         tokenTransactionRepository.save(transaction);
 
         return newBalance;
@@ -262,9 +218,8 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
     }
 
     private CreateSubscriptionResponse buildResponse(
-            User user,
             PlanVersion planVersion,
-            LocalDateTime startDate,
+            Subscription subscription,
             Integer tokenBalance
     ) {
         SubscriptionPlanDTO planDTO = new SubscriptionPlanDTO(
@@ -274,10 +229,10 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         );
 
         CreateSubscriptionResponse response = new CreateSubscriptionResponse();
-        response.setUserId(user.getId());
         response.setPlan(planDTO);
         response.setNewTokenBalance(tokenBalance);
-        response.setStartDate(startDate);
+        response.setStartDate(subscription.getStartDate());
+        response.setEndDate(subscription.getEndDate());
         return response;
     }
 
@@ -321,7 +276,6 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
         subscription.setStartDate(startDate);
         subscription.setEndDate(resolveSubscriptionEndDate(startDate, planVersion));
         subscription.setStatus(SubscriptionStatus.ACTIVE);
-        subscription.setAutoRenew(true);
         return subscriptionRepository.save(subscription);
     }
 
@@ -349,22 +303,10 @@ public class SubscriptionServiceImpl implements ISubscriptionService {
      */
     private int normalizeAmountByType(Integer amount, TokenTransactionType type) {
         int absoluteAmount = Math.abs(amount);
-        if (type == TokenTransactionType.SUBSTRACT) {
+        if (type == TokenTransactionType.CONSUMPTION) {
             return -absoluteAmount;
         }
         return absoluteAmount;
-    }
-
-    /**
-     * Construye una llave idempotente deterministica para evitar duplicados.
-     *
-     * @param action accion principal
-     * @param values componentes de llave
-     * @return llave idempotente
-     */
-    private String buildIdempotencyKey(String action, String... values) {
-        String raw = action + ":" + String.join(":", values);
-        return UUID.nameUUIDFromBytes(raw.getBytes(StandardCharsets.UTF_8)).toString();
     }
 
     /**

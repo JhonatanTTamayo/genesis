@@ -4,14 +4,26 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import java.util.List;
 
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 public class CreditExecutionResponse {
-    private Integer monthlyPayment;
-    private Integer totalPayment;
-    private Integer totalInterest;
+    private Double monthlyPayment;
+    private Double totalPaid;
+    private Double totalInterest;
+    private List<AmortizationItem> amortizationSchedule;
 
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class AmortizationItem {
+        private Integer month;
+        private Double interestPaid;
+        private Double principalPaid;
+        private Double remainingBalance;
+    }
 }

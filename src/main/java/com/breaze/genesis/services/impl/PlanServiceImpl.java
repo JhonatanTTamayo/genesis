@@ -4,13 +4,13 @@ import com.breaze.genesis.dto.plan.dto.PlanItemDTO;
 import com.breaze.genesis.dto.plan.requests.DeletePlanRequest;
 import com.breaze.genesis.dto.plan.requests.ListPlansRequest;
 import com.breaze.genesis.dto.plan.requests.UpdatePlanRequest;
+import com.breaze.genesis.dto.plan.requests.UpdatePlanStatusRequest;
 import com.breaze.genesis.dto.plan.responses.DeletePlanResponse;
 import com.breaze.genesis.dto.plan.responses.ListPlansResponse;
 import com.breaze.genesis.dto.plan.responses.UpdatePlanResponse;
+import com.breaze.genesis.dto.plan.responses.UpdatePlanStatusResponse;
 import com.breaze.genesis.entity.plan.Plan;
 import com.breaze.genesis.entity.plan.PlanVersion;
-import com.breaze.genesis.entity.subscriptions.Subscription;
-import com.breaze.genesis.entity.subscriptions.SubscriptionStatus;
 import com.breaze.genesis.exceptions.BusinessException;
 import com.breaze.genesis.exceptions.ResourceNotFoundException;
 import com.breaze.genesis.repository.plan.IPlanRepository;
@@ -23,10 +23,8 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -59,7 +57,7 @@ public class PlanServiceImpl implements IPlanService {
         PageRequest pageRequest = buildPageRequest(request);
         LocalDateTime now = LocalDateTime.now();
 
-        Page<Plan> page = planRepository.findAll(pageRequest);
+        Page<Plan> page = planRepository.findActivePlans(now, pageRequest);
         List<PlanItemDTO> content = page.getContent().stream()
                 .map(plan -> mapPlan(plan, now))
                 .toList();
@@ -118,8 +116,6 @@ public class PlanServiceImpl implements IPlanService {
                         .build()
         );
 
-        syncActiveSubscriptionsForNextRenewal(savedPlan.getId(), savedPlan);
-
         return UpdatePlanResponse.builder()
                 .planId(savedPlan.getId())
                 .planName(savedPlan.getName())
@@ -143,14 +139,10 @@ public class PlanServiceImpl implements IPlanService {
     public DeletePlanResponse deletePlan(DeletePlanRequest request) {
         Long planId = request.getPlanId();
         Plan plan = planRepository.findById(planId)
-                .orElseThrow(() -> new ResourceNotFoundException("Plan no encontrado"));
-
-        if (subscriptionRepository.existsByPlanVersionPlanIdAndStatus(planId, SubscriptionStatus.ACTIVE)) {
-            throw new BusinessException("No se puede eliminar el plan porque tiene suscripciones activas");
-        }
+                .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
 
         if (subscriptionRepository.existsByPlanVersionPlanId(planId)) {
-            throw new BusinessException("No se puede eliminar el plan porque tiene historial de suscripciones");
+            throw new BusinessException("Cannot delete plan because it has associated subscriptions");
         }
 
         planVersionRepository.deleteByPlanId(planId);
@@ -159,8 +151,48 @@ public class PlanServiceImpl implements IPlanService {
         return DeletePlanResponse.builder()
                 .planId(planId)
                 .deleted(true)
-                .message("Plan eliminado exitosamente")
+                .message("Plan deleted successfully")
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public UpdatePlanStatusResponse updatePlanStatus(Long planId, UpdatePlanStatusRequest request) {
+        Plan plan = planRepository.findById(planId)
+                .orElseThrow(() -> new ResourceNotFoundException("Plan not found"));
+
+        PlanVersion latestVersion = planVersionRepository.findFirstByPlanIdOrderByValidFromDesc(planId)
+                .orElseThrow(() -> new ResourceNotFoundException("No versions found for plan"));
+
+        LocalDateTime now = LocalDateTime.now();
+        boolean isCurrentlyActive = (latestVersion.getValidTo() == null || latestVersion.getValidTo().isAfter(now));
+
+        if (request.getActive()) {
+            if (isCurrentlyActive) {
+                return new UpdatePlanStatusResponse(planId, true, "Plan is already active");
+            }
+            
+            PlanVersion newVersion = PlanVersion.builder()
+                    .plan(plan)
+                    .tokenLimit(latestVersion.getTokenLimit())
+                    .durationSeconds(latestVersion.getDurationSeconds())
+                    .validFrom(now)
+                    .validTo(null)
+                    .build();
+                    
+            planVersionRepository.save(newVersion);
+            return new UpdatePlanStatusResponse(planId, true, "Plan activated successfully");
+            
+        } else {
+            if (!isCurrentlyActive) {
+               return new UpdatePlanStatusResponse(planId, false, "Plan is already inactive");
+            }
+            
+            latestVersion.setValidTo(now);
+            planVersionRepository.save(latestVersion);
+            
+            return new UpdatePlanStatusResponse(planId, false, "Plan deactivated successfully");
+        }
     }
 
     /**
@@ -177,19 +209,17 @@ public class PlanServiceImpl implements IPlanService {
                 PageRequest.of(0, 1)
         );
 
-        Optional<PlanVersion> latestVersion = planVersionRepository.findFirstByPlanIdOrderByValidFromDesc(plan.getId());
-
         if (effectiveVersions.isEmpty()) {
-            return PlanItemDTO.builder()
-                .planId(plan.getId())
-                .planName(plan.getName())
-                .planDescription(plan.getDescription())
-                .tokenLimitPerCycle(latestVersion.map(PlanVersion::getTokenLimit).orElse(null))
-                .billingCycleDurationSeconds(latestVersion.map(PlanVersion::getDurationSeconds).orElse(null))
-                .build();
+            return PlanItemDTO.builder().build(); // Retorna un DTO vacio con todo en null para que sea filtrado
         }
 
         PlanVersion activeVersion = effectiveVersions.get(0);
+        
+        // Criterio de validacion de plan inactivo
+        if (activeVersion.getValidTo() != null && !activeVersion.getValidTo().isAfter(now)) {
+             return PlanItemDTO.builder().build(); // Retorna un DTO vacio para que sea filtrado
+        }
+
         return PlanItemDTO.builder()
             .planId(plan.getId())
             .planName(plan.getName())
@@ -300,18 +330,6 @@ public class PlanServiceImpl implements IPlanService {
      * @param planId identificador del plan actualizado
      * @param plan entidad de plan actualizada
      */
-    private void syncActiveSubscriptionsForNextRenewal(Long planId, Plan plan) {
-        List<Subscription> activeSubscriptions = subscriptionRepository
-                .findByPlanVersionPlanIdAndStatus(planId, SubscriptionStatus.ACTIVE);
-
-        if (activeSubscriptions.isEmpty()) {
-            return;
-        }
-
-        activeSubscriptions.forEach(subscription -> subscription.setPendingPlan(plan));
-        subscriptionRepository.saveAll(activeSubscriptions);
-    }
-
     /**
      * Verifica si la actualizacion solicitada es idempotente validando campos y la version activa.
      *

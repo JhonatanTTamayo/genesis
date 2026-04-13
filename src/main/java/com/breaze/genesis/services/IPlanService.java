@@ -3,9 +3,11 @@ package com.breaze.genesis.services;
 import com.breaze.genesis.dto.plan.requests.ListPlansRequest;
 import com.breaze.genesis.dto.plan.requests.DeletePlanRequest;
 import com.breaze.genesis.dto.plan.requests.UpdatePlanRequest;
+import com.breaze.genesis.dto.plan.requests.UpdatePlanStatusRequest;
 import com.breaze.genesis.dto.plan.responses.DeletePlanResponse;
 import com.breaze.genesis.dto.plan.responses.ListPlansResponse;
 import com.breaze.genesis.dto.plan.responses.UpdatePlanResponse;
+import com.breaze.genesis.dto.plan.responses.UpdatePlanStatusResponse;
 
 /**
  * Contrato de aplicacion para operaciones del dominio de planes.
@@ -39,4 +41,12 @@ public interface IPlanService {
      * @return resultado de la eliminacion
      */
     DeletePlanResponse deletePlan(DeletePlanRequest request);
+
+    /**
+     * Activa o desactiva un plan en base a su ultima version.
+     *
+     * @param request indicador de activacion/desactivacion
+     * @return estado actualizado
+     */
+    UpdatePlanStatusResponse updatePlanStatus(Long planId, UpdatePlanStatusRequest request);
 }

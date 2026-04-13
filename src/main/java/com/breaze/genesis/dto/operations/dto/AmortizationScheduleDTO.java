@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @AllArgsConstructor
 @NoArgsConstructor
-public class TablaAmortizacionDTO {
+public class AmortizationScheduleDTO {
     private Integer paymentNumber;
     private Integer amortizedCapital;
     private Integer payedInterest;
