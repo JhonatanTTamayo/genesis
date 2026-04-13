@@ -1,9 +1,9 @@
 package com.breaze.genesis.controller;
 
-import com.breaze.genesis.dto.response.TokenConsumptionMetricResponse;
-import com.breaze.genesis.dto.response.TopOperationsMetricResponse;
-import com.breaze.genesis.dto.response.TopUsersMetricResponse;
-import com.breaze.genesis.service.MetricsService;
+import com.breaze.genesis.dto.metrics.responses.TokenConsumptionMetricResponse;
+import com.breaze.genesis.dto.metrics.responses.TopOperationsMetricResponse;
+import com.breaze.genesis.dto.metrics.responses.TopUsersMetricResponse;
+import com.breaze.genesis.services.IMetricsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class MetricsController {
 
-    private final MetricsService metricsService;
+    private final IMetricsService metricsService;
 
     @GetMapping("/token-consumption")
     public TokenConsumptionMetricResponse getTokenConsumptionMetrics() {

@@ -28,6 +28,9 @@ public class OperationCatalog {
     @Column(nullable = false, length = 150)
     private String name;
 
+    @Column(length = 255)
+    private String description;
+
     @Column(name = "base_cost", nullable = false)
     private Integer baseCost;
 

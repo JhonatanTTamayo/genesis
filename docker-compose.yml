@@ -1,0 +1,21 @@
+services:
+  mysql:
+    image: mysql
+    container_name: genesis-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: RootGenesis123*
+      MYSQL_DATABASE: genesis_db
+      MYSQL_USER: genesis_user
+      MYSQL_PASSWORD: Genesis123*
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -u$$MYSQL_USER -p$$MYSQL_PASSWORD"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+volumes:
+  mysql_data:

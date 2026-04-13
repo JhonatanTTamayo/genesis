@@ -19,8 +19,8 @@ tags:
     description: Subscription endpoints
   - name: Operations
     description: Operation catalog and execution endpoints
-  - name: Transactions
-    description: User transaction history endpoints
+  - name: Wallet
+    description: Wallet balance and token ledger endpoints
   - name: Metrics
     description: Operational metrics endpoints
 
@@ -386,7 +386,7 @@ paths:
     put:
       tags:
         - Plans
-      summary: Update plan
+      summary: Update plan and create a new active version
       operationId: updatePlan
       security:
         - bearerAuth: []
@@ -402,14 +402,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PlanUpsertRequest'
+              $ref: '#/components/schemas/PlanUpdateRequest'
       responses:
         '200':
-          description: Plan updated successfully
+          description: Plan updated successfully and a new version was created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PlanResponse'
+                $ref: '#/components/schemas/PlanUpdateResponse'
         '400':
           description: Validation error
           content:
@@ -434,6 +434,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Conflict while creating the new version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
     delete:
       tags:
@@ -450,8 +456,12 @@ paths:
             type: integer
             format: int64
       responses:
-        '204':
+        '200':
           description: Plan deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlanDeleteResponse'
         '401':
           description: Unauthorized
           content:
@@ -518,6 +528,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Plan has no active version and cannot accept new subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 
   /api/v1/subscriptions/me:
     get:
@@ -542,6 +558,55 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Active subscription not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/subscriptions/history:
+    get:
+      tags:
+        - Subscriptions
+      summary: Get subscription history for authenticated user
+      operationId: getMySubscriptionHistory
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Subscription history retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SubscriptionHistoryItemResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Authenticated user not found
           content:
             application/json:
               schema:
@@ -819,12 +884,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
-  /api/v1/transactions/me:
+  /api/v1/wallet/me:
     get:
       tags:
-        - Transactions
-      summary: Get authenticated user transaction history
-      operationId: getMyTransactions
+        - Wallet
+      summary: Get authenticated user wallet balance
+      operationId: getMyWalletBalance
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Wallet balance retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WalletBalanceResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Authenticated user not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/wallet/transactions:
+    get:
+      tags:
+        - Wallet
+      summary: Get authenticated user wallet transaction history
+      operationId: getMyWalletTransactions
       security:
         - bearerAuth: []
       parameters:
@@ -840,48 +933,13 @@ paths:
           schema:
             type: integer
             default: 10
-        - name: sort
-          in: query
-          required: false
-          schema:
-            type: string
-            default: executedAt,desc
       responses:
         '200':
-          description: Transaction history retrieved successfully
+          description: Wallet transaction history retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TransactionPageResponse'
-        '401':
-          description: Unauthorized
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/transactions/{id}:
-    get:
-      tags:
-        - Transactions
-      summary: Get transaction detail
-      operationId: getTransactionById
-      security:
-        - bearerAuth: []
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema:
-            type: integer
-            format: int64
-      responses:
-        '200':
-          description: Transaction retrieved successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TransactionResponse'
+                $ref: '#/components/schemas/WalletTransactionHistoryResponse'
         '401':
           description: Unauthorized
           content:
@@ -889,7 +947,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
-          description: Transaction not found
+          description: Authenticated user not found
           content:
             application/json:
               schema:
@@ -1170,19 +1228,68 @@ components:
     PlanResponse:
       type: object
       properties:
-        id:
+        planId:
           type: integer
           format: int64
           example: 1
-        name:
+        planName:
           type: string
           example: Free
-        tokenAmount:
+        planDescription:
+          type: string
+          example: Plan base gratuito
+        tokenLimitPerCycle:
           type: integer
           example: 200
-        active:
+        billingCycleDurationSeconds:
+          type: integer
+          example: 2592000
+
+    PlanUpdateResponse:
+      type: object
+      properties:
+        planId:
+          type: integer
+          format: int64
+          example: 2
+        planName:
+          type: string
+          example: Pro Plus
+        planDescription:
+          type: string
+          example: Plan profesional con mayor capacidad
+        tokenLimitPerCycle:
+          type: integer
+          example: 2500
+        billingCycleDurationSeconds:
+          type: integer
+          example: 2592000
+        versionValidFrom:
+          type: string
+          format: date-time
+          example: '2026-04-12T12:00:00'
+        versionValidTo:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-05-12T12:00:00'
+        currentlyAvailable:
           type: boolean
           example: true
+
+    PlanDeleteResponse:
+      type: object
+      properties:
+        planId:
+          type: integer
+          format: int64
+          example: 3
+        deleted:
+          type: boolean
+          example: true
+        message:
+          type: string
+          example: Plan eliminado exitosamente
 
     PlanPageResponse:
       type: object
@@ -1261,6 +1368,29 @@ components:
         active:
           type: boolean
           example: true
+
+    SubscriptionHistoryItemResponse:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 21
+        planName:
+          type: string
+          example: Pro
+        startDate:
+          type: string
+          format: date-time
+          example: '2026-04-06T10:30:00'
+        endDate:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        active:
+          type: boolean
+          example: false
 
     OperationResponse:
       type: object
@@ -1471,56 +1601,54 @@ components:
           items:
             $ref: '#/components/schemas/SleepOption'
 
-    TransactionResponse:
+    WalletBalanceResponse:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+          example: 1
+        email:
+          type: string
+          example: user@example.com
+        currentBalance:
+          type: integer
+          example: 950
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-04-11T14:30:00'
+
+    WalletTransactionItemResponse:
       type: object
       properties:
         id:
           type: integer
           format: int64
-          example: 10
-        operationCode:
-          type: string
-          example: OP-03
-        operationName:
-          type: string
-          example: BMI Calculator
-        inputJson:
-          type: string
-          example: '{"weightKg":70,"heightCm":175}'
-        outputJson:
-          type: string
-          example: '{"bmi":22.86,"category":"Normal weight"}'
-        inputTokens:
+          example: 1001
+        amount:
           type: integer
-          example: 7
-        outputTokens:
-          type: integer
-          example: 10
-        baseCost:
-          type: integer
-          example: 15
-        totalTokensConsumed:
-          type: integer
-          example: 32
-        status:
+          example: 200
+        type:
           type: string
-          example: SUCCESS
-        errorMessage:
-          type: string
+          example: ADD
+        referenceId:
+          type: integer
+          format: int64
           nullable: true
-          example: null
-        executedAt:
+          example: 10
+        createdAt:
           type: string
           format: date-time
-          example: '2026-04-06T10:45:00'
+          example: '2026-04-11T14:00:00'
 
-    TransactionPageResponse:
+    WalletTransactionHistoryResponse:
       type: object
       properties:
         content:
           type: array
           items:
-            $ref: '#/components/schemas/TransactionResponse'
+            $ref: '#/components/schemas/WalletTransactionItemResponse'
         page:
           type: integer
           example: 0
@@ -1662,6 +1790,33 @@ components:
         active:
           type: boolean
           example: true
+
+    PlanUpdateRequest:
+      type: object
+      description: Creating scheduled versions is not allowed; versionValidFrom is always set by the system to now.
+      required:
+        - planName
+        - planDescription
+        - tokenLimitPerCycle
+        - billingCycleDurationSeconds
+      properties:
+        planName:
+          type: string
+          example: Pro Plus
+        planDescription:
+          type: string
+          example: Plan profesional con mayor capacidad
+        tokenLimitPerCycle:
+          type: integer
+          example: 2500
+        billingCycleDurationSeconds:
+          type: integer
+          example: 2592000
+        versionValidTo:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-05-12T12:00:00'
 
     ExchangeRateRequest:
       type: object
